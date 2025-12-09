@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoPan - 我的网盘</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .file-item:hover { background-color: #f3f4f6; }
+        .file-item.selected { background-color: #dbeafe; }
+        .folder-icon { color: #fbbf24; }
+        .file-icon { color: #6b7280; }
+        .view-icon { width: 20px; height: 20px; }
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col">
+    <!-- Top Toolbar -->
+    <div class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2">
+        <!-- Navigation Buttons - More Prominent -->
+        <div class="flex items-center gap-1 border-r border-gray-300 pr-2">
+            <button onclick="goBack()" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold" title="后退 (Alt+←)">← 后退</button>
+            <button onclick="goForward()" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold" title="前进 (Alt+→)">前进 →</button>
+            <button onclick="goUp()" class="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 font-semibold" title="返回上一级 (Backspace)">↑ 向上</button>
+        </div>
+        <div class="flex-1 mx-4">
+            <input type="text" id="pathInput" class="w-full px-3 py-1 border border-gray-300 rounded" placeholder="路径" onkeypress="if(event.key==='Enter') navigateToPath()">
+        </div>
+        <input type="text" id="searchInput" class="px-3 py-1 border border-gray-300 rounded w-64" placeholder="搜索文件..." onkeyup="searchFiles()">
+        
+        <!-- View Mode Dropdown -->
+        <div class="flex items-center gap-1 border-l border-gray-300 pl-2 ml-2">
+            <select id="viewModeSelect" onchange="setViewMode(this.value)" class="px-3 py-1 border border-gray-300 rounded bg-white">
+                <option value="grid">大图标</option>
+                <option value="list">列表</option>
+                <option value="detail">详细信息</option>
+            </select>
+        </div>
+        
+        <button onclick="uploadFile()" class="px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">上传</button>
+        <button onclick="createFolder()" class="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700">新建文件夹</button>
+        <button onclick="showMyShares()" class="px-4 py-1 bg-purple-600 text-white rounded hover:bg-purple-700">我的分享</button>
+        <button onclick="logout()" class="px-4 py-1 bg-red-600 text-white rounded hover:bg-red-700">退出</button>
+    </div>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+            <div class="mb-4">
+                <h3 class="font-semibold text-gray-700 mb-2">快速访问</h3>
+                <div class="space-y-1">
+                    <button onclick="navigateToRoot()" class="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center gap-2">
+                        <span>📁</span> 我的文件
+                    </button>
+                    <button onclick="navigateToTrash()" class="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center gap-2">
+                        <span>🗑️</span> 回收站
+                    </button>
+                </div>
+            </div>
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-2">文件夹</h3>
+                <div id="folderTree" class="space-y-1"></div>
+            </div>
+            <div class="mt-4">
+                <button onclick="refreshFolderTree()" class="text-sm text-blue-600 hover:underline">刷新</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Breadcrumb -->
+            <div class="bg-white border-b border-gray-200 px-4 py-2">
+                <div id="breadcrumb" class="flex items-center gap-2 text-sm"></div>
+            </div>
+
+            <!-- File List -->
+            <div class="flex-1 overflow-y-auto p-4" id="fileList">
+                <div id="fileGrid" class="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4"></div>
+                <table id="fileTable" class="hidden w-full border-collapse">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="border border-gray-200 px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('name')">
+                                名称 <span id="sortName" class="text-xs">↕</span>
+                            </th>
+                            <th class="border border-gray-200 px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('size')">
+                                大小 <span id="sortSize" class="text-xs">↕</span>
+                            </th>
+                            <th class="border border-gray-200 px-4 py-2 text-left">类型</th>
+                            <th class="border border-gray-200 px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('date')">
+                                修改时间 <span id="sortDate" class="text-xs">↕</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="fileTableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="bg-white border-t border-gray-200 px-4 py-2 text-sm text-gray-600">
+                <span id="statusText">就绪</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="hidden fixed bg-white border border-gray-300 rounded shadow-lg py-1 z-50" style="min-width: 150px;">
+        <button onclick="contextOpen()" class="w-full text-left px-4 py-2 hover:bg-gray-100">打开</button>
+        <button onclick="contextPreview()" class="w-full text-left px-4 py-2 hover:bg-gray-100">预览</button>
+        <button onclick="contextDownload()" class="w-full text-left px-4 py-2 hover:bg-gray-100">下载</button>
+        <button onclick="contextShare()" class="w-full text-left px-4 py-2 hover:bg-gray-100">分享</button>
+        <hr class="my-1">
+        <button onclick="contextRename()" class="w-full text-left px-4 py-2 hover:bg-gray-100">重命名</button>
+        <button onclick="contextCopy()" class="w-full text-left px-4 py-2 hover:bg-gray-100">复制</button>
+        <button onclick="contextCut()" class="w-full text-left px-4 py-2 hover:bg-gray-100">剪切</button>
+        <button onclick="contextPaste()" class="w-full text-left px-4 py-2 hover:bg-gray-100">粘贴</button>
+        <hr class="my-1">
+        <button onclick="contextDelete()" class="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600">删除</button>
+        <button id="contextRestore" onclick="contextRestore()" class="hidden w-full text-left px-4 py-2 hover:bg-gray-100 text-green-600">恢复</button>
+        <button id="contextPermanentDelete" onclick="contextPermanentDelete()" class="hidden w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600">永久删除</button>
+        <button onclick="contextProperties()" class="w-full text-left px-4 py-2 hover:bg-gray-100">属性</button>
+    </div>
+
+    <!-- Upload Dialog -->
+    <div id="uploadDialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <h2 class="text-xl font-bold mb-4">上传文件</h2>
+            <div class="mb-4">
+                <label class="block mb-2 text-sm font-medium">选择文件</label>
+                <input type="file" id="fileInput" multiple class="w-full border border-gray-300 rounded p-2">
+            </div>
+            <div id="uploadProgress" class="flex-1 overflow-y-auto space-y-3 mb-4"></div>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeUploadDialog()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Dialog System -->
+    <div id="dialogOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div id="dialogContent" class="bg-white rounded-lg p-6 max-w-md w-full mx-4"></div>
+    </div>
+
+    <!-- Preview Panel (for inline preview) -->
+    <div id="previewPanel" class="hidden fixed inset-0 bg-white z-50 flex flex-col">
+        <div class="bg-gray-100 border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+            <h2 id="previewTitle" class="text-lg font-semibold">预览</h2>
+            <button onclick="closePreviewPanel()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">关闭</button>
+        </div>
+        <div id="previewContent" class="flex-1 overflow-auto p-4"></div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="hidden loading-overlay">
+        <div class="bg-white rounded-lg p-6">
+            <div class="flex items-center gap-3">
+                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <span>加载中...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api';
+        let token = localStorage.getItem('token');
+        let currentPath = null;
+        let selectedFiles = new Set();
+        let clipboard = null;
+        let history = [];
+        let historyIndex = -1;
+        let viewMode = 'detail'; // 'grid', 'list', 'detail' - 默认详细信息视图
+        let allFiles = [];
+
+        // Check authentication
+        if (!token) {
+            window.location.href = '/index.html';
+        }
+
+        // Dialog System
+        function showDialog(title, content, buttons = []) {
+            const overlay = document.getElementById('dialogOverlay');
+            const contentDiv = document.getElementById('dialogContent');
+            
+            let buttonsHtml = '';
+            if (buttons.length === 0) {
+                buttonsHtml = '<button onclick="closeDialog()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">确定</button>';
+            } else {
+                buttonsHtml = buttons.map(btn => 
+                    `<button onclick="${btn.onclick}" class="px-4 py-2 ${btn.class || 'bg-blue-600 text-white'} rounded hover:opacity-90">${btn.text}</button>`
+                ).join('');
+            }
+            
+            contentDiv.innerHTML = `
+                <h2 class="text-xl font-bold mb-4">${title}</h2>
+                <div class="mb-4">${content}</div>
+                <div class="flex justify-end gap-2">${buttonsHtml}</div>
+            `;
+            overlay.classList.remove('hidden');
+        }
+
+        function closeDialog() {
+            document.getElementById('dialogOverlay').classList.add('hidden');
+        }
+
+        function showConfirm(title, message, onConfirm, onCancel = null) {
+            showDialog(title, message, [
+                { text: '取消', onclick: 'closeDialog()', class: 'bg-gray-300 text-gray-700' },
+                { text: '确定', onclick: `closeDialog(); (${onConfirm.toString()})()` }
+            ]);
+        }
+
+        function showPrompt(title, message, defaultValue, onConfirm) {
+            const inputId = 'promptInput_' + Date.now();
+            showDialog(title, `
+                <p class="mb-2">${message}</p>
+                <input type="text" id="${inputId}" value="${defaultValue || ''}" class="w-full px-3 py-2 border border-gray-300 rounded" autofocus>
+            `, [
+                { text: '取消', onclick: 'closeDialog()', class: 'bg-gray-300 text-gray-700' },
+                { text: '确定', onclick: `closeDialog(); (${onConfirm.toString()})(document.getElementById('${inputId}').value)` }
+            ]);
+            setTimeout(() => document.getElementById(inputId)?.focus(), 100);
+        }
+
+        // Toast System
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-500'
+            };
+            toast.className = `toast ${colors[type] || colors.info} text-white px-6 py-3 rounded shadow-lg`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Loading
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        // API helper
+        async function apiCall(endpoint, options = {}) {
+            const response = await fetch(API_BASE + endpoint, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+            if (response.status === 401) {
+                localStorage.removeItem('token');
+                window.location.href = '/index.html';
+            }
+            return response;
+        }
+
+        // View Mode
+        function setViewMode(mode) {
+            viewMode = mode;
+            const select = document.getElementById('viewModeSelect');
+            if (select) {
+                select.value = mode;
+            }
+            displayFiles(allFiles);
+        }
+
+        // Navigation
+        async function loadFiles(parentId = null) {
+            try {
+                showLoading();
+                const url = parentId ? `/files?parent_id=${parentId}` : '/files';
+                const response = await apiCall(url);
+                const data = await response.json();
+                allFiles = data.files || [];
+                
+                // Windows资源管理器风格：默认按名称排序，文件夹在前
+                allFiles.sort((a, b) => {
+                    const aIsFolder = a.type === 0;
+                    const bIsFolder = b.type === 0;
+                    if (aIsFolder && !bIsFolder) return -1;
+                    if (!aIsFolder && bIsFolder) return 1;
+                    return a.name.toLowerCase().localeCompare(b.name.toLowerCase(), 'zh-CN');
+                });
+                
+                displayFiles(allFiles);
+                currentPath = parentId;
+                updateBreadcrumb();
+                addToHistory(parentId);
+            } catch (error) {
+                console.error('Failed to load files:', error);
+                showToast('加载文件失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function updateSortIndicators() {
+            document.querySelectorAll('[id^="sort"]').forEach(el => el.textContent = '↕');
+            const indicator = document.getElementById(`sort${sortField.charAt(0).toUpperCase() + sortField.slice(1)}`);
+            if (indicator) {
+                indicator.textContent = sortOrder === 'asc' ? '↑' : '↓';
+            }
+        }
+
+        function displayFiles(files) {
+            const grid = document.getElementById('fileGrid');
+            const table = document.getElementById('fileTable');
+            const tableBody = document.getElementById('fileTableBody');
+            
+            // Update sort indicators
+            updateSortIndicators();
+            
+            if (viewMode === 'grid') {
+                grid.classList.remove('hidden');
+                table.classList.add('hidden');
+                grid.innerHTML = '';
+                files.forEach(file => {
+                    const div = document.createElement('div');
+                    div.className = 'file-item p-4 border border-gray-200 rounded cursor-pointer';
+                    div.dataset.id = file.id;
+                    div.onclick = (e) => selectFile(e, file.id, file);
+                    div.oncontextmenu = (e) => showContextMenu(e, file);
+                    div.ondblclick = () => openFile(file);
+                    
+                    const icon = file.type === 0 ? '📁' : '📄';
+                    const size = file.type === 1 ? formatSize(file.size) : '';
+                    div.innerHTML = `
+                        <div class="text-center">
+                            <div class="text-4xl mb-2">${icon}</div>
+                            <div class="text-sm font-medium truncate" title="${file.name}">${file.name}</div>
+                            ${size ? `<div class="text-xs text-gray-500">${size}</div>` : ''}
+                        </div>
+                    `;
+                    grid.appendChild(div);
+                });
+            } else if (viewMode === 'list') {
+                grid.classList.add('hidden');
+                table.classList.remove('hidden');
+                tableBody.innerHTML = '';
+                files.forEach(file => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'file-item cursor-pointer';
+                    tr.dataset.id = file.id;
+                    tr.onclick = (e) => selectFile(e, file.id, file);
+                    tr.oncontextmenu = (e) => showContextMenu(e, file);
+                    tr.ondblclick = () => openFile(file);
+                    const icon = file.type === 0 ? '📁' : '📄';
+                    tr.innerHTML = `
+                        <td class="border border-gray-200 px-4 py-2">${icon} ${file.name}</td>
+                        <td class="border border-gray-200 px-4 py-2">${file.type === 1 ? formatSize(file.size) : '-'}</td>
+                        <td class="border border-gray-200 px-4 py-2">${file.type === 0 ? '文件夹' : '文件'}</td>
+                        <td class="border border-gray-200 px-4 py-2">${formatDate(file.updated_at)}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            } else { // detail view (same as list but with more columns)
+                grid.classList.add('hidden');
+                table.classList.remove('hidden');
+                tableBody.innerHTML = '';
+                files.forEach(file => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'file-item cursor-pointer';
+                    tr.dataset.id = file.id;
+                    tr.onclick = (e) => selectFile(e, file.id, file);
+                    tr.oncontextmenu = (e) => showContextMenu(e, file);
+                    tr.ondblclick = () => openFile(file);
+                    const icon = file.type === 0 ? '📁' : '📄';
+                    tr.innerHTML = `
+                        <td class="border border-gray-200 px-4 py-2">${icon} ${file.name}</td>
+                        <td class="border border-gray-200 px-4 py-2">${file.type === 1 ? formatSize(file.size) : '-'}</td>
+                        <td class="border border-gray-200 px-4 py-2">${file.mime_type || '-'}</td>
+                        <td class="border border-gray-200 px-4 py-2">${formatDate(file.updated_at)}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+            updateSelection();
+            updateStatus();
+        }
+
+        function formatSize(bytes) {
+            if (!bytes) return '0 B';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN');
+        }
+
+        function selectFile(e, id, file) {
+            if (e.ctrlKey) {
+                if (selectedFiles.has(id)) {
+                    selectedFiles.delete(id);
+                } else {
+                    selectedFiles.add(id);
+                }
+            } else if (e.shiftKey) {
+                // Range selection
+                const fileIds = allFiles.map(f => f.id);
+                const currentIndex = fileIds.indexOf(id);
+                const lastSelected = Array.from(selectedFiles).pop();
+                const lastIndex = lastSelected ? fileIds.indexOf(parseInt(lastSelected)) : -1;
+                const start = Math.min(currentIndex, lastIndex >= 0 ? lastIndex : currentIndex);
+                const end = Math.max(currentIndex, lastIndex >= 0 ? lastIndex : currentIndex);
+                for (let i = start; i <= end; i++) {
+                    selectedFiles.add(fileIds[i]);
+                }
+            } else {
+                selectedFiles.clear();
+                selectedFiles.add(id);
+            }
+            updateSelection();
+        }
+
+        function updateSelection() {
+            document.querySelectorAll('.file-item').forEach(item => {
+                if (selectedFiles.has(item.dataset.id)) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+            updateStatus();
+        }
+
+        function updateStatus() {
+            const count = selectedFiles.size;
+            const total = allFiles.length;
+            const text = count > 0 ? `已选择 ${count} 个项目` : `${total} 个项目`;
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function openFile(file) {
+            if (isTrashMode) {
+                // In trash mode, show restore/delete options
+                showTrashFileActions(file);
+                return;
+            }
+            if (file.type === 0) {
+                isSearchMode = false;
+                loadFiles(file.id);
+            } else {
+                // Preview file instead of direct download
+                previewFile(file);
+            }
+        }
+
+        function showTrashFileActions(file) {
+            showDialog('回收站文件', `
+                <div class="space-y-4">
+                    <div>
+                        <p class="font-medium">${file.name}</p>
+                        <p class="text-sm text-gray-600">删除时间: ${formatDate(file.deleted_at)}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="restoreFile(${file.id})" class="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">恢复</button>
+                        <button onclick="permanentlyDeleteFile(${file.id})" class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">永久删除</button>
+                    </div>
+                </div>
+            `, [
+                { text: '关闭', onclick: 'closeDialog()', class: 'bg-gray-300 text-gray-700' }
+            ]);
+        }
+
+        async function restoreFile(fileId) {
+            try {
+                await apiCall('/files/restore', {
+                    method: 'POST',
+                    body: JSON.stringify({ id: fileId.toString() })
+                });
+                showToast('恢复成功', 'success');
+                closeDialog();
+                navigateToTrash(); // Refresh trash
+            } catch (error) {
+                showToast('恢复失败', 'error');
+            }
+        }
+
+        async function permanentlyDeleteFile(fileId) {
+            showConfirm('确认永久删除', '此操作不可恢复，确定要永久删除吗？', async () => {
+                try {
+                    await apiCall(`/files/trash/${fileId}`, { method: 'DELETE' });
+                    showToast('永久删除成功', 'success');
+                    closeDialog();
+                    navigateToTrash(); // Refresh trash
+                } catch (error) {
+                    showToast('删除失败', 'error');
+                }
+            });
+        }
+
+        async function emptyTrash() {
+            if (allFiles.length === 0) {
+                showToast('回收站已为空', 'info');
+                return;
+            }
+            
+            showConfirm('确认清空回收站', `确定要永久删除回收站中的所有 ${allFiles.length} 个文件吗？此操作不可恢复！`, async () => {
+                try {
+                    showLoading();
+                    let successCount = 0;
+                    let failCount = 0;
+                    
+                    for (const file of allFiles) {
+                        try {
+                            await apiCall(`/files/trash/${file.id}`, { method: 'DELETE' });
+                            successCount++;
+                        } catch (error) {
+                            failCount++;
+                        }
+                    }
+                    
+                    if (successCount > 0) {
+                        showToast(`成功删除 ${successCount} 个文件`, 'success');
+                    }
+                    if (failCount > 0) {
+                        showToast(`${failCount} 个文件删除失败`, 'error');
+                    }
+                    
+                    navigateToTrash(); // Refresh
+                } catch (error) {
+                    showToast('清空回收站失败', 'error');
+                } finally {
+                    hideLoading();
+                }
+            });
+        }
+
+        async function previewFile(file) {
+            try {
+                showLoading();
+                const response = await apiCall(`/preview/${file.id}`);
+                const data = await response.json();
+                
+                if (data.type === 'text') {
+                    // Show text preview in panel with edit capability (当页预览)
+                    showTextPreviewInPanel(file.name, data.content, data.mime_type, data.editable, file.id);
+                } else if (data.type === 'office') {
+                    // Show Office document in panel using iframe (当页预览)
+                    showOfficePreviewInPanel(file.name, data.url);
+                } else if (data.type === 'pdf') {
+                    // Show PDF in panel using iframe (当页预览)
+                    showPDFPreviewInPanel(file.name, data.url);
+                } else if (data.type === 'kkfileview') {
+                    // Show in kkFileView iframe (当页预览)
+                    showKKFileViewPreviewInPanel(file.name, data.url);
+                } else {
+                    // Fallback: show in iframe if possible, otherwise download
+                    showGenericPreviewInPanel(file.name, data.url, data.mime_type);
+                }
+            } catch (error) {
+                console.error('Preview failed:', error);
+                showToast('预览失败，尝试下载', 'warning');
+                // Fallback to download
+                window.open(`/api/files/${file.id}/download`, '_blank');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function showPreviewPanel(title) {
+            const panel = document.getElementById('previewPanel');
+            const titleEl = document.getElementById('previewTitle');
+            titleEl.textContent = title;
+            panel.classList.remove('hidden');
+        }
+
+        function closePreviewPanel() {
+            document.getElementById('previewPanel').classList.add('hidden');
+            document.getElementById('previewContent').innerHTML = '';
+        }
+
+        function showTextPreviewInPanel(fileName, content, mimeType, editable = false, fileId = null) {
+            showPreviewPanel('预览/编辑: ' + fileName);
+            const contentDiv = document.getElementById('previewContent');
+            const previewId = 'textPreview_' + Date.now();
+            
+            let html = `
+                <div class="space-y-4">
+                    <textarea id="${previewId}_content" class="w-full h-full p-4 border border-gray-300 rounded font-mono text-sm" ${editable ? '' : 'readonly'}>${escapeHtml(content)}</textarea>
+                    <div class="flex justify-end gap-2">
+            `;
+            
+            if (editable && fileId) {
+                html += `<button onclick="saveTextFile(${fileId}, '${previewId}')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>`;
+            }
+            
+            html += `
+                        <button onclick="closePreviewPanel()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">关闭</button>
+                    </div>
+                </div>
+            `;
+            
+            contentDiv.innerHTML = html;
+        }
+
+        function showOfficePreviewInPanel(fileName, url) {
+            showPreviewPanel('预览: ' + fileName);
+            const contentDiv = document.getElementById('previewContent');
+            contentDiv.innerHTML = `
+                <iframe src="${url}" class="w-full h-full border-0" style="min-height: 600px;"></iframe>
+            `;
+        }
+
+        function showPDFPreviewInPanel(fileName, url) {
+            showPreviewPanel('预览: ' + fileName);
+            const contentDiv = document.getElementById('previewContent');
+            // Use PDF.js viewer in iframe
+            contentDiv.innerHTML = `
+                <iframe src="${url}" class="w-full h-full border-0" style="min-height: 600px;"></iframe>
+            `;
+        }
+
+        function showKKFileViewPreviewInPanel(fileName, url) {
+            showPreviewPanel('预览: ' + fileName);
+            const contentDiv = document.getElementById('previewContent');
+            contentDiv.innerHTML = `
+                <iframe src="${url}" class="w-full h-full border-0" style="min-height: 600px;"></iframe>
+            `;
+        }
+
+        function showGenericPreviewInPanel(fileName, url, mimeType) {
+            showPreviewPanel('预览: ' + fileName);
+            const contentDiv = document.getElementById('previewContent');
+            
+            // Check if it's an image
+            if (mimeType && mimeType.startsWith('image/')) {
+                contentDiv.innerHTML = `
+                    <div class="flex items-center justify-center h-full">
+                        <img src="${url}" alt="${fileName}" class="max-w-full max-h-full object-contain">
+                    </div>
+                `;
+            } else {
+                // Try iframe first, fallback to download link
+                contentDiv.innerHTML = `
+                    <div class="space-y-4">
+                        <iframe src="${url}" class="w-full h-full border border-gray-300 rounded" style="min-height: 600px;" onerror="this.parentElement.innerHTML='<p class=\\'text-center text-gray-600 py-8\\'>无法预览此文件类型，请<a href=\\'${url}\\' class=\\'text-blue-600 underline\\' target=\\'_blank\\'>下载</a>查看</p>'"></iframe>
+                        <div class="text-center">
+                            <a href="${url}" target="_blank" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">在新窗口打开</a>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function showTextPreview(fileName, content, mimeType, editable = false, fileId = null) {
+            const previewId = 'textPreview_' + Date.now();
+            const isCode = mimeType.includes('javascript') || mimeType.includes('json') || 
+                          mimeType.includes('xml') || fileName.match(/\.(js|json|xml|html|css|py|go|java|cpp|h)$/i);
+            
+            const buttons = [
+                { text: '关闭', onclick: 'closeDialog()', class: 'bg-gray-300 text-gray-700' }
+            ];
+            
+            if (editable && fileId) {
+                buttons.push({ 
+                    text: '保存', 
+                    onclick: `saveTextFile(${fileId}, '${previewId}')`, 
+                    class: 'bg-blue-600 text-white' 
+                });
+            } else {
+                buttons.push({ 
+                    text: '下载', 
+                    onclick: `downloadFileFromPreview('${fileName}')`, 
+                    class: 'bg-blue-600 text-white' 
+                });
+            }
+            
+            showDialog(editable ? '预览/编辑: ' + fileName : '预览: ' + fileName, `
+                <div class="space-y-4">
+                    ${editable ? `
+                        <textarea id="${previewId}_content" class="w-full h-96 p-3 border border-gray-300 rounded font-mono text-sm">${escapeHtml(content)}</textarea>
+                    ` : `
+                        <div class="max-h-96 overflow-auto">
+                            <pre class="bg-gray-50 p-4 rounded border ${isCode ? 'font-mono text-sm' : ''}" id="${previewId}">${escapeHtml(content)}</pre>
+                        </div>
+                    `}
+                </div>
+            `, buttons);
+        }
+
+        async function saveTextFile(fileId, previewId) {
+            try {
+                const content = document.getElementById(`${previewId}_content`).value;
+                // TODO: Implement save text file API endpoint
+                // For now, show a message
+                showToast('文本文件保存功能待实现（需要后端API支持）', 'info');
+                // In the future, this would call: await apiCall(`/files/${fileId}/content`, { method: 'PUT', body: JSON.stringify({ content }) });
+            } catch (error) {
+                showToast('保存失败', 'error');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function downloadFileFromPreview(fileName) {
+            const fileId = contextFile ? contextFile.id : null;
+            if (fileId) {
+                window.open(`/api/files/${fileId}/download`, '_blank');
+            }
+        }
+
+        async function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (isSearchMode) {
+                const query = document.getElementById('searchInput').value;
+                breadcrumb.innerHTML = `<span class="text-gray-600">搜索结果: "${query}"</span>`;
+                return;
+            }
+            
+            if (isTrashMode) {
+                breadcrumb.innerHTML = '<span class="text-gray-600">回收站</span>';
+                return;
+            }
+            
+            if (currentPath === null) {
+                breadcrumb.innerHTML = '<button onclick="navigateToRoot()" class="hover:underline">根目录</button>';
+                return;
+            }
+            
+            // Build breadcrumb path
+            try {
+                const path = [];
+                let nodeId = currentPath;
+                while (nodeId) {
+                    const response = await apiCall(`/files/${nodeId}`);
+                    const node = await response.json();
+                    path.unshift({ id: node.id, name: node.name });
+                    nodeId = node.parent_id;
+                }
+                
+                let html = '<button onclick="navigateToRoot()" class="hover:underline">根目录</button>';
+                path.forEach(item => {
+                    html += ` <span>/</span> <button onclick="loadFiles(${item.id})" class="hover:underline">${item.name}</button>`;
+                });
+                breadcrumb.innerHTML = html;
+            } catch (error) {
+                breadcrumb.innerHTML = '<button onclick="navigateToRoot()" class="hover:underline">根目录</button>';
+            }
+        }
+
+        function navigateToRoot() {
+            isSearchMode = false;
+            isTrashMode = false;
+            document.getElementById('searchInput').value = '';
+            loadFiles(null);
+        }
+
+        let isTrashMode = false;
+
+        async function navigateToTrash() {
+            try {
+                showLoading();
+                isSearchMode = false;
+                isTrashMode = true;
+                const response = await apiCall('/files/trash');
+                const data = await response.json();
+                allFiles = data.files || [];
+                
+                // Windows资源管理器风格：默认按名称排序，文件夹在前
+                allFiles.sort((a, b) => {
+                    const aIsFolder = a.type === 0;
+                    const bIsFolder = b.type === 0;
+                    if (aIsFolder && !bIsFolder) return -1;
+                    if (!aIsFolder && bIsFolder) return 1;
+                    return a.name.toLowerCase().localeCompare(b.name.toLowerCase(), 'zh-CN');
+                });
+                
+                displayFiles(allFiles);
+                updateBreadcrumb();
+                document.getElementById('statusText').textContent = `回收站 (${allFiles.length} 个项目)`;
+            } catch (error) {
+                console.error('Failed to load trash:', error);
+                showToast('加载回收站失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function goBack() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                loadFiles(history[historyIndex]);
+            }
+        }
+
+        function goForward() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                loadFiles(history[historyIndex]);
+            }
+        }
+
+        function goUp() {
+            if (isTrashMode || isSearchMode) {
+                navigateToRoot();
+                return;
+            }
+            // TODO: Navigate to parent folder
+            navigateToRoot();
+        }
+
+        function addToHistory(path) {
+            history = history.slice(0, historyIndex + 1);
+            history.push(path);
+            historyIndex = history.length - 1;
+        }
+
+        // Context Menu
+        let contextFile = null;
+        function showContextMenu(e, file) {
+            e.preventDefault();
+            contextFile = file;
+            const menu = document.getElementById('contextMenu');
+            const restoreBtn = document.getElementById('contextRestore');
+            const permanentDeleteBtn = document.getElementById('contextPermanentDelete');
+            
+            // Show/hide trash-specific actions
+            if (isTrashMode) {
+                restoreBtn.classList.remove('hidden');
+                permanentDeleteBtn.classList.remove('hidden');
+                // Hide normal actions in trash
+                menu.querySelectorAll('button:not(#contextRestore):not(#contextPermanentDelete):not([onclick="contextProperties()"])').forEach(btn => {
+                    btn.classList.add('hidden');
+                });
+            } else {
+                restoreBtn.classList.add('hidden');
+                permanentDeleteBtn.classList.add('hidden');
+                // Show normal actions
+                menu.querySelectorAll('button').forEach(btn => {
+                    btn.classList.remove('hidden');
+                });
+            }
+            
+            menu.style.left = e.pageX + 'px';
+            menu.style.top = e.pageY + 'px';
+            menu.classList.remove('hidden');
+        }
+
+        function contextRestore() {
+            if (contextFile) {
+                restoreFile(contextFile.id);
+            }
+        }
+
+        function contextPermanentDelete() {
+            if (contextFile) {
+                permanentlyDeleteFile(contextFile.id);
+            }
+        }
+
+        document.addEventListener('click', () => {
+            document.getElementById('contextMenu').classList.add('hidden');
+        });
+
+        function contextOpen() {
+            if (contextFile) openFile(contextFile);
+        }
+
+        function contextPreview() {
+            if (contextFile && contextFile.type === 1) {
+                previewFile(contextFile);
+            } else {
+                showToast('只能预览文件', 'info');
+            }
+        }
+
+        function contextDownload() {
+            if (contextFile && contextFile.type === 1) {
+                window.open(`/api/files/${contextFile.id}/download`, '_blank');
+            }
+        }
+
+        async function contextShare() {
+            if (!contextFile) return;
+            showShareDialog(contextFile);
+        }
+
+        function showShareDialog(file) {
+            const dialogId = 'shareDialog_' + Date.now();
+            showDialog('分享文件: ' + file.name, `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">分享类型</label>
+                        <select id="${dialogId}_type" class="w-full px-3 py-2 border border-gray-300 rounded">
+                            <option value="0">永久分享</option>
+                            <option value="1">时效分享</option>
+                        </select>
+                    </div>
+                    <div id="${dialogId}_expires" class="hidden">
+                        <label class="block text-sm font-medium mb-2">有效期（天）</label>
+                        <input type="number" id="${dialogId}_days" value="7" min="1" max="365" class="w-full px-3 py-2 border border-gray-300 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">访问密码（可选）</label>
+                        <input type="password" id="${dialogId}_password" placeholder="留空则不设密码" class="w-full px-3 py-2 border border-gray-300 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">最大访问次数（可选）</label>
+                        <input type="number" id="${dialogId}_maxCount" placeholder="0表示无限制" min="0" class="w-full px-3 py-2 border border-gray-300 rounded">
+                    </div>
+                </div>
+            `, [
+                { text: '取消', onclick: 'closeDialog()', class: 'bg-gray-300 text-gray-700' },
+                { text: '创建分享', onclick: `createShare('${file.id}', '${dialogId}')`, class: 'bg-blue-600 text-white' }
+            ]);
+            
+            // Show/hide expires field based on share type
+            document.getElementById(`${dialogId}_type`).addEventListener('change', (e) => {
+                const expiresDiv = document.getElementById(`${dialogId}_expires`);
+                if (e.target.value === '1') {
+                    expiresDiv.classList.remove('hidden');
+                } else {
+                    expiresDiv.classList.add('hidden');
+                }
+            });
+        }
+
+        async function createShare(fileId, dialogId) {
+            try {
+                const shareType = parseInt(document.getElementById(`${dialogId}_type`).value);
+                const days = parseInt(document.getElementById(`${dialogId}_days`)?.value || '7');
+                const password = document.getElementById(`${dialogId}_password`).value;
+                const maxCount = parseInt(document.getElementById(`${dialogId}_maxCount`)?.value || '0');
+                
+                let expiresAt = null;
+                if (shareType === 1) {
+                    expiresAt = new Date();
+                    expiresAt.setDate(expiresAt.getDate() + days);
+                }
+                
+                const body = {
+                    node_id: fileId,
+                    share_type: shareType,
+                    password: password,
+                    max_access_count: maxCount > 0 ? maxCount : 0
+                };
+                if (expiresAt) {
+                    body.expires_at = expiresAt.toISOString();
+                }
+                
+                const response = await apiCall('/shares', {
+                    method: 'POST',
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                const url = window.location.origin + '/share.html?code=' + data.code;
+                
+                closeDialog();
+                showDialog('分享创建成功', `
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-600">分享链接已生成，点击下方按钮复制链接</p>
+                        <div class="flex gap-2">
+                            <input type="text" id="shareUrlInput" value="${url}" readonly class="flex-1 px-3 py-2 border border-gray-300 rounded bg-gray-50">
+                            <button onclick="copyShareUrl()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">复制</button>
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            <p>分享码: ${data.code}</p>
+                            ${data.expires_at ? `<p>有效期至: ${new Date(data.expires_at).toLocaleString()}</p>` : '<p>永久有效</p>'}
+                        </div>
+                    </div>
+                `, [
+                    { text: '关闭', onclick: 'closeDialog()', class: 'bg-gray-300 text-gray-700' },
+                    { text: '管理分享', onclick: 'closeDialog(); showMyShares()', class: 'bg-green-600 text-white' }
+                ]);
+            } catch (error) {
+                showToast('创建分享失败', 'error');
+            }
+        }
+
+        function copyShareUrl() {
+            const input = document.getElementById('shareUrlInput');
+            input.select();
+            document.execCommand('copy');
+            showToast('链接已复制到剪贴板', 'success');
+        }
+
+        async function showMyShares() {
+            try {
+                showLoading();
+                const response = await apiCall('/shares');
+                const data = await response.json();
+                
+                // Handle both array and object with shares property
+                const shares = data.shares || data || [];
+                
+                if (shares.length === 0) {
+                    showDialog('我的分享', '<p class="text-gray-600">暂无分享</p>');
+                    return;
+                }
+                
+                let sharesHtml = '<div class="space-y-2 max-h-96 overflow-y-auto">';
+                shares.forEach(share => {
+                    const url = window.location.origin + '/share.html?code=' + share.code;
+                    sharesHtml += `
+                        <div class="border border-gray-200 rounded p-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <p class="font-medium">${share.node.name}</p>
+                                    <p class="text-sm text-gray-600">分享码: ${share.code}</p>
+                                    <p class="text-xs text-gray-500">访问次数: ${share.access_count}${share.max_access_count > 0 ? ` / ${share.max_access_count}` : ''}</p>
+                                    ${share.expires_at ? `<p class="text-xs text-gray-500">有效期至: ${new Date(share.expires_at).toLocaleString()}</p>` : '<p class="text-xs text-gray-500">永久有效</p>'}
+                                </div>
+                                <div class="flex gap-2 ml-4">
+                                    <button onclick="copyShareLink('${share.code}')" class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">复制链接</button>
+                                    <button onclick="deleteShare(${share.id})" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">删除</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                sharesHtml += '</div>';
+                
+                showDialog('我的分享', sharesHtml);
+            } catch (error) {
+                showToast('加载分享列表失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function copyShareLink(code) {
+            const url = window.location.origin + '/share.html?code=' + code;
+            navigator.clipboard.writeText(url);
+            showToast('链接已复制', 'success');
+        }
+
+        async function deleteShare(shareId) {
+            showConfirm('确认删除', '确定要删除这个分享吗？', async () => {
+                try {
+                    await apiCall(`/shares/${shareId}`, { method: 'DELETE' });
+                    showToast('删除成功', 'success');
+                    showMyShares(); // Refresh list
+                } catch (error) {
+                    showToast('删除失败', 'error');
+                }
+            });
+        }
+
+        async function contextRename() {
+            if (!contextFile) return;
+            showPrompt('重命名', '请输入新名称:', contextFile.name, async (newName) => {
+                if (newName && newName !== contextFile.name) {
+                    try {
+                        await apiCall(`/files/${contextFile.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ name: newName })
+                        });
+                        showToast('重命名成功', 'success');
+                        loadFiles(currentPath);
+                    } catch (error) {
+                        showToast('重命名失败', 'error');
+                    }
+                }
+            });
+        }
+
+        function contextCopy() {
+            clipboard = { type: 'copy', files: Array.from(selectedFiles) };
+            showToast('已复制', 'success');
+        }
+
+        function contextCut() {
+            clipboard = { type: 'cut', files: Array.from(selectedFiles) };
+            showToast('已剪切', 'success');
+        }
+
+        async function contextPaste() {
+            if (!clipboard) return;
+            try {
+                await apiCall('/files/' + (clipboard.type === 'copy' ? 'copy' : 'move'), {
+                    method: 'PUT',
+                    body: JSON.stringify({ ids: clipboard.files, parent_id: currentPath || 'root' })
+                });
+                showToast('操作成功', 'success');
+                loadFiles(currentPath);
+                if (clipboard.type === 'cut') clipboard = null;
+            } catch (error) {
+                showToast('操作失败', 'error');
+            }
+        }
+
+        async function contextDelete() {
+            if (!contextFile) return;
+            
+            // Batch delete if multiple files selected
+            const filesToDelete = selectedFiles.size > 1 ? Array.from(selectedFiles) : [contextFile.id];
+            
+            showConfirm('确认删除', `确定要删除 ${filesToDelete.length} 个文件吗？文件将移动到回收站。`, async () => {
+                try {
+                    let successCount = 0;
+                    let failCount = 0;
+                    
+                    for (const id of filesToDelete) {
+                        try {
+                            await apiCall(`/files/${id}`, { method: 'DELETE' });
+                            successCount++;
+                        } catch (error) {
+                            failCount++;
+                        }
+                    }
+                    
+                    if (successCount > 0) {
+                        showToast(`成功删除 ${successCount} 个文件`, 'success');
+                    }
+                    if (failCount > 0) {
+                        showToast(`${failCount} 个文件删除失败`, 'error');
+                    }
+                    
+                    if (isTrashMode) {
+                        navigateToTrash();
+                    } else {
+                        loadFiles(currentPath);
+                    }
+                    selectedFiles.clear();
+                } catch (error) {
+                    showToast('删除失败', 'error');
+                }
+            });
+        }
+
+        function contextProperties() {
+            if (contextFile) {
+                const props = `
+                    <div class="space-y-2">
+                        <p><strong>文件名:</strong> ${contextFile.name}</p>
+                        <p><strong>类型:</strong> ${contextFile.type === 0 ? '文件夹' : '文件'}</p>
+                        <p><strong>大小:</strong> ${formatSize(contextFile.size || 0)}</p>
+                        <p><strong>修改时间:</strong> ${formatDate(contextFile.updated_at)}</p>
+                    </div>
+                `;
+                showDialog('文件属性', props);
+            }
+        }
+
+        // Upload
+        function uploadFile() {
+            const dialog = document.getElementById('uploadDialog');
+            const fileInput = document.getElementById('fileInput');
+            const progressDiv = document.getElementById('uploadProgress');
+            
+            // Clear previous uploads
+            fileInput.value = '';
+            progressDiv.innerHTML = '';
+            uploadQueue = [];
+            isUploading = false;
+            
+            dialog.classList.remove('hidden');
+            fileInput.onchange = handleFileSelect;
+        }
+
+        let uploadQueue = [];
+        let isUploading = false;
+
+        function closeUploadDialog() {
+            // Don't close if there are active uploads
+            const hasActiveUploads = uploadQueue.some(item => item.status === 'uploading' || item.status === 'pending');
+            if (hasActiveUploads) {
+                showConfirm('确认关闭', '有文件正在上传，确定要关闭吗？', () => {
+                    document.getElementById('uploadDialog').classList.add('hidden');
+                });
+            } else {
+                document.getElementById('uploadDialog').classList.add('hidden');
+            }
+        }
+
+        async function handleFileSelect(event) {
+            const files = event.target.files;
+            const progressDiv = document.getElementById('uploadProgress');
+            
+            if (files.length === 0) return;
+
+            // Add files to queue
+            Array.from(files).forEach(file => {
+                uploadQueue.push({
+                    file: file,
+                    status: 'pending',
+                    progress: 0
+                });
+            });
+
+            // Start upload if not already uploading
+            if (!isUploading) {
+                processUploadQueue();
+            }
+        }
+
+        async function processUploadQueue() {
+            if (uploadQueue.length === 0) {
+                isUploading = false;
+                // Auto refresh after all uploads complete
+                setTimeout(() => {
+                    if (!isSearchMode) {
+                        loadFiles(currentPath);
+                    }
+                }, 1000);
+                return;
+            }
+
+            isUploading = true;
+            const item = uploadQueue.find(i => i.status === 'pending');
+            if (!item) {
+                isUploading = false;
+                return;
+            }
+
+            const { file } = item;
+            const progressDiv = document.getElementById('uploadProgress');
+            
+            // Create progress item if not exists
+            let progressItem = document.getElementById(`upload_${file.name}`);
+            if (!progressItem) {
+                progressItem = document.createElement('div');
+                progressItem.id = `upload_${file.name}`;
+                progressItem.className = 'border border-gray-200 rounded p-3';
+                progressItem.innerHTML = `
+                    <div class="text-sm font-medium mb-1">${file.name}</div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">等待上传...</div>
+                `;
+                progressDiv.appendChild(progressItem);
+            }
+            
+            const progressBar = progressItem.querySelector('.bg-blue-600');
+            const statusText = progressItem.querySelector('.text-xs');
+            item.status = 'uploading';
+
+            const formData = new FormData();
+            formData.append('file', file);
+            if (currentPath) formData.append('parent_id', currentPath);
+
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        item.progress = percent;
+                        progressBar.style.width = percent + '%';
+                        statusText.textContent = `上传中: ${percent.toFixed(1)}% (${formatSize(e.loaded)} / ${formatSize(e.total)})`;
+                    }
+                };
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        item.status = 'completed';
+                        progressBar.style.width = '100%';
+                        progressBar.classList.remove('bg-blue-600');
+                        progressBar.classList.add('bg-green-600');
+                        statusText.textContent = '上传完成';
+                        statusText.classList.remove('text-gray-500');
+                        statusText.classList.add('text-green-600');
+                        showToast(`${file.name} 上传成功`, 'success');
+                        // Immediately refresh file list after successful upload
+                        if (!isSearchMode && !isTrashMode) {
+                            setTimeout(() => {
+                                loadFiles(currentPath);
+                            }, 300);
+                        }
+                    } else {
+                        item.status = 'failed';
+                        progressBar.classList.remove('bg-blue-600');
+                        progressBar.classList.add('bg-red-600');
+                        statusText.textContent = '上传失败';
+                        statusText.classList.add('text-red-600');
+                        showToast(`${file.name} 上传失败`, 'error');
+                    }
+                    // Continue with next file
+                    setTimeout(() => processUploadQueue(), 500);
+                };
+                xhr.onerror = () => {
+                    item.status = 'failed';
+                    progressBar.classList.remove('bg-blue-600');
+                    progressBar.classList.add('bg-red-600');
+                    statusText.textContent = '上传失败';
+                    statusText.classList.add('text-red-600');
+                    showToast(`${file.name} 上传失败`, 'error');
+                    setTimeout(() => processUploadQueue(), 500);
+                };
+                xhr.open('POST', API_BASE + '/files/upload');
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                xhr.send(formData);
+            } catch (error) {
+                console.error('Upload failed:', error);
+                item.status = 'failed';
+                progressBar.classList.remove('bg-blue-600');
+                progressBar.classList.add('bg-red-600');
+                statusText.textContent = '上传失败';
+                statusText.classList.add('text-red-600');
+                setTimeout(() => processUploadQueue(), 500);
+            }
+        }
+
+        async function createFolder() {
+            showPrompt('新建文件夹', '请输入文件夹名称:', '', async (name) => {
+                if (name) {
+                    try {
+                        await apiCall('/files/folder', {
+                            method: 'POST',
+                            body: JSON.stringify({ name, parent_id: currentPath || 'root' })
+                        });
+                        showToast('创建成功', 'success');
+                        loadFiles(currentPath);
+                    } catch (error) {
+                        showToast('创建文件夹失败', 'error');
+                    }
+                }
+            });
+        }
+
+        let searchTimeout = null;
+        let isSearchMode = false;
+        let searchResults = [];
+
+        function searchFiles() {
+            const query = document.getElementById('searchInput').value.trim();
+            
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            if (!query) {
+                // Exit search mode
+                if (isSearchMode) {
+                    isSearchMode = false;
+                    loadFiles(currentPath);
+                }
+                return;
+            }
+            
+            // Debounce search
+            searchTimeout = setTimeout(async () => {
+                try {
+                    showLoading();
+                    isSearchMode = true;
+                    const response = await apiCall(`/files/search?q=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    searchResults = data.files || [];
+                    displayFiles(searchResults);
+                    updateBreadcrumb();
+                    document.getElementById('statusText').textContent = `找到 ${searchResults.length} 个结果`;
+                } catch (error) {
+                    console.error('Search failed:', error);
+                    showToast('搜索失败', 'error');
+                } finally {
+                    hideLoading();
+                }
+            }, 300);
+        }
+
+        function logout() {
+            showConfirm('确认退出', '确定要退出登录吗？', () => {
+                localStorage.removeItem('token');
+                window.location.href = '/index.html';
+            });
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F5') {
+                e.preventDefault();
+                loadFiles(currentPath);
+            } else if (e.key === 'Delete' && selectedFiles.size > 0) {
+                // Delete selected files
+                contextDelete();
+            } else if (e.ctrlKey && e.key === 'a') {
+                e.preventDefault();
+                // Select all
+                allFiles.forEach(file => selectedFiles.add(file.id));
+                updateSelection();
+            }
+        });
+
+        // Drag and drop upload
+        const fileList = document.getElementById('fileList');
+        fileList.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileList.classList.add('bg-blue-50');
+        });
+        fileList.addEventListener('dragleave', () => {
+            fileList.classList.remove('bg-blue-50');
+        });
+        fileList.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileList.classList.remove('bg-blue-50');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const fileInput = document.getElementById('fileInput');
+                const dataTransfer = new DataTransfer();
+                Array.from(files).forEach(file => dataTransfer.items.add(file));
+                fileInput.files = dataTransfer.files;
+                uploadFile();
+                handleFileSelect({ target: fileInput });
+            }
+        });
+
+        // Folder Tree
+        async function loadFolderTree() {
+            try {
+                const response = await apiCall('/files/tree');
+                const data = await response.json();
+                renderFolderTree(data.tree || [], document.getElementById('folderTree'));
+            } catch (error) {
+                console.error('Failed to load folder tree:', error);
+            }
+        }
+
+        function renderFolderTree(tree, container, level = 0) {
+            container.innerHTML = '';
+            if (tree.length === 0) {
+                container.innerHTML = '<p class="text-xs text-gray-500">暂无文件夹</p>';
+                return;
+            }
+            
+            tree.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'folder-tree-item';
+                div.style.paddingLeft = (level * 16) + 'px';
+                
+                const hasChildren = item.children && item.children.length > 0;
+                const itemId = 'folder_' + item.id;
+                
+                div.innerHTML = `
+                    <button onclick="toggleFolder('${itemId}')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 text-sm">
+                        <span id="${itemId}_icon" class="text-xs">${hasChildren ? '▼' : '▶'}</span>
+                        <span>📁</span>
+                        <span class="truncate flex-1" onclick="event.stopPropagation(); loadFiles(${item.id})">${item.name}</span>
+                    </button>
+                    <div id="${itemId}_children" class="${hasChildren ? '' : 'hidden'} mt-1"></div>
+                `;
+                container.appendChild(div);
+                
+                if (hasChildren) {
+                    const childrenDiv = document.getElementById(`${itemId}_children`);
+                    renderFolderTree(item.children, childrenDiv, level + 1);
+                }
+            });
+        }
+
+        function toggleFolder(itemId) {
+            const childrenDiv = document.getElementById(`${itemId}_children`);
+            const icon = document.getElementById(`${itemId}_icon`);
+            if (childrenDiv.classList.contains('hidden')) {
+                childrenDiv.classList.remove('hidden');
+                icon.textContent = '▼';
+            } else {
+                childrenDiv.classList.add('hidden');
+                icon.textContent = '▶';
+            }
+        }
+
+        function refreshFolderTree() {
+            loadFolderTree();
+        }
+
+        // File sorting
+        let sortField = 'name';
+        let sortOrder = 'asc';
+
+        function sortFiles(field) {
+            if (sortField === field) {
+                sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortOrder = 'asc';
+            }
+            
+            allFiles.sort((a, b) => {
+                // Windows资源管理器风格：文件夹始终在文件前面
+                const aIsFolder = a.type === 0;
+                const bIsFolder = b.type === 0;
+                
+                if (aIsFolder && !bIsFolder) return -1;
+                if (!aIsFolder && bIsFolder) return 1;
+                
+                // 如果都是文件夹或都是文件，按选择的字段排序
+                let aVal, bVal;
+                switch (field) {
+                    case 'name':
+                        // 名称排序：不区分大小写，但保持大小写显示
+                        aVal = a.name.toLowerCase();
+                        bVal = b.name.toLowerCase();
+                        break;
+                    case 'size':
+                        aVal = a.size || 0;
+                        bVal = b.size || 0;
+                        break;
+                    case 'date':
+                        aVal = new Date(a.updated_at || a.created_at || 0);
+                        bVal = new Date(b.updated_at || b.created_at || 0);
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            displayFiles(allFiles);
+            showToast(`按${field === 'name' ? '名称' : field === 'size' ? '大小' : '日期'}${sortOrder === 'asc' ? '升序' : '降序'}排序`, 'info');
+        }
+
+        // Initialize
+        setViewMode('detail'); // 默认详细信息视图
+        // Set initial view mode in dropdown
+        const viewModeSelect = document.getElementById('viewModeSelect');
+        if (viewModeSelect) {
+            viewModeSelect.value = 'detail';
+        }
+        loadFiles();
+        loadFolderTree();
+    </script>
+</body>
+</html>
