@@ -5,17 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GoPan - 分享</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .file-item:hover {
+            background-color: #f3f4f6;
+        }
+        .file-item.selected {
+            background-color: #0078d4;
+            color: white;
+        }
+    </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center">
-    <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">文件分享</h1>
-        </div>
-        <div id="content" class="space-y-4">
-            <div class="text-center">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                <p class="mt-4 text-gray-600">加载中...</p>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <div class="bg-white rounded-lg shadow-xl p-6">
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">文件分享</h1>
+                <div id="breadcrumb" class="text-sm text-gray-600"></div>
             </div>
+            <div id="content" class="space-y-4">
+                <div class="text-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                    <p class="mt-4 text-gray-600">加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 id="previewTitle" class="text-lg font-bold"></h3>
+                <button onclick="closePreview()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div id="previewContent" class="flex-1 overflow-auto p-4"></div>
         </div>
     </div>
 
@@ -24,17 +47,26 @@
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
         const password = urlParams.get('password');
+        let currentShare = null;
+        let currentFolderId = null;
+        let folderStack = [];
 
-        async function loadShare() {
+        async function loadShare(folderId = null) {
             try {
-                // Decode password from URL
                 const decodedPassword = password ? decodeURIComponent(password) : '';
                 const url = `/shares/${code}${decodedPassword ? '?password=' + encodeURIComponent(decodedPassword) : ''}`;
                 const response = await fetch(API_BASE + url);
                 const data = await response.json();
                 
                 if (response.ok) {
-                    displayShare(data);
+                    currentShare = data;
+                    if (folderId) {
+                        // Load folder contents
+                        await loadFolderContents(folderId);
+                    } else {
+                        // Display share root
+                        displayShare(data);
+                    }
                 } else {
                     if (data.error === 'Password required' || data.error === 'Invalid password') {
                         promptPassword();
@@ -48,25 +80,45 @@
             }
         }
 
+        async function loadFolderContents(folderId) {
+            try {
+                const decodedPassword = password ? decodeURIComponent(password) : '';
+                const url = `/shares/${code}/folder/${folderId}${decodedPassword ? '?password=' + encodeURIComponent(decodedPassword) : ''}`;
+                const response = await fetch(API_BASE + url);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayFolderContents(data.files || [], folderId);
+                } else {
+                    showError(data.error || '加载文件夹失败');
+                }
+            } catch (error) {
+                console.error('Load folder error:', error);
+                showError('加载文件夹失败');
+            }
+        }
+
         function promptPassword() {
             const content = document.getElementById('content');
             content.innerHTML = `
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">请输入密码</label>
-                    <input type="password" id="sharePassword" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4">
+                <div class="max-w-md mx-auto">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">请输入密码</label>
+                        <input type="password" id="sharePassword" class="w-full px-4 py-2 border border-gray-300 rounded-lg" autofocus>
+                    </div>
                     <button onclick="submitPassword()" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">确认</button>
                 </div>
             `;
         }
 
         function submitPassword() {
-            const password = document.getElementById('sharePassword').value;
-            if (!password) {
-                showError('请输入密码');
+            const passwordInput = document.getElementById('sharePassword');
+            const pwd = passwordInput.value;
+            if (!pwd) {
+                alert('请输入密码');
                 return;
             }
-            // Use encodeURIComponent to handle special characters in password
-            window.location.href = `/share.html?code=${code}&password=${encodeURIComponent(password)}`;
+            window.location.href = `/share.html?code=${code}&password=${encodeURIComponent(pwd)}`;
         }
 
         function displayShare(data) {
@@ -74,46 +126,218 @@
             const node = data.node;
             const isFile = node.type === 1;
             
-            content.innerHTML = `
-                <div class="text-center mb-6">
-                    <div class="text-6xl mb-4">${isFile ? '📄' : '📁'}</div>
-                    <h2 class="text-xl font-bold">${node.name}</h2>
-                    ${isFile ? `<p class="text-gray-600 mt-2">${formatSize(node.size)}</p>` : ''}
+            updateBreadcrumb([{ name: node.name, id: null }]);
+            
+            if (isFile) {
+                // Display file with preview option
+                content.innerHTML = `
+                    <div class="text-center mb-6">
+                        <div class="text-6xl mb-4">📄</div>
+                        <h2 class="text-xl font-bold">${escapeHtml(node.name)}</h2>
+                        <p class="text-gray-600 mt-2">${formatSize(node.size)}</p>
+                    </div>
+                    <div class="flex gap-2 justify-center">
+                        <button onclick="previewFile('${code}', ${node.id})" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            预览
+                        </button>
+                        <button onclick="downloadFile()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            下载
+                        </button>
+                    </div>
+                    <div class="text-sm text-gray-600 text-center mt-6">
+                        <p>分享码: ${data.code}</p>
+                        ${data.expires_at ? `<p>有效期至: ${new Date(data.expires_at).toLocaleString()}</p>` : '<p>永久有效</p>'}
+                    </div>
+                `;
+            } else {
+                // Display folder and load contents
+                currentFolderId = node.id;
+                folderStack = [{ name: node.name, id: node.id }];
+                loadFolderContents(node.id);
+            }
+        }
+
+        function displayFolderContents(files, folderId) {
+            const content = document.getElementById('content');
+            
+            // Sort: folders first, then by name
+            files.sort((a, b) => {
+                if (a.type === 0 && b.type === 1) return -1;
+                if (a.type === 1 && b.type === 0) return 1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            if (files.length === 0) {
+                content.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <p class="text-lg">文件夹为空</p>
+                    </div>
+                    <div class="mt-4">
+                        <button onclick="goBack()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">返回</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="mb-4">
+                    <button onclick="goBack()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">← 返回</button>
                 </div>
-                ${isFile ? `
-                    <button onclick="downloadFile()" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 mb-4">
-                        下载文件
-                    </button>
-                ` : ''}
-                <div class="text-sm text-gray-600 text-center">
-                    <p>分享码: ${data.code}</p>
-                    ${data.expires_at ? `<p>有效期至: ${new Date(data.expires_at).toLocaleString()}</p>` : '<p>永久有效</p>'}
-                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             `;
+            
+            files.forEach(file => {
+                const icon = file.type === 0 ? '📁' : '📄';
+                html += `
+                    <div class="file-item border border-gray-200 rounded p-4 cursor-pointer hover:bg-gray-50" 
+                         onclick="${file.type === 0 ? `openFolder(${file.id}, '${escapeHtml(file.name)}')` : `previewFile('${code}', ${file.id})`}">
+                        <div class="text-center">
+                            <div class="text-4xl mb-2">${icon}</div>
+                            <div class="text-sm font-medium truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</div>
+                            ${file.type === 1 ? `<div class="text-xs text-gray-500 mt-1">${formatSize(file.size)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            content.innerHTML = html;
+        }
+
+        function openFolder(folderId, folderName) {
+            folderStack.push({ name: folderName, id: folderId });
+            currentFolderId = folderId;
+            updateBreadcrumb(folderStack);
+            loadFolderContents(folderId);
+        }
+
+        function goBack() {
+            if (folderStack.length > 1) {
+                folderStack.pop();
+                const prevFolder = folderStack[folderStack.length - 1];
+                currentFolderId = prevFolder.id;
+                updateBreadcrumb(folderStack);
+                if (prevFolder.id) {
+                    loadFolderContents(prevFolder.id);
+                } else {
+                    // Back to root
+                    displayShare(currentShare);
+                }
+            } else if (folderStack.length === 1) {
+                // Back to root share
+                folderStack = [];
+                currentFolderId = null;
+                displayShare(currentShare);
+            }
+        }
+
+        function updateBreadcrumb(stack) {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (!stack || stack.length === 0) {
+                breadcrumb.innerHTML = '';
+                return;
+            }
+            let html = '';
+            stack.forEach((item, index) => {
+                if (index > 0) html += ' / ';
+                html += `<span class="${index === stack.length - 1 ? 'font-semibold' : ''}">${escapeHtml(item.name)}</span>`;
+            });
+            breadcrumb.innerHTML = html;
+        }
+
+        async function previewFile(shareCode, fileId) {
+            try {
+                const decodedPassword = password ? decodeURIComponent(password) : '';
+                const url = `/shares/${shareCode}/preview/${fileId}${decodedPassword ? '?password=' + encodeURIComponent(decodedPassword) : ''}`;
+                const response = await fetch(API_BASE + url);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showPreview(data);
+                } else {
+                    alert(data.error || '预览失败');
+                }
+            } catch (error) {
+                console.error('Preview error:', error);
+                alert('预览失败');
+            }
+        }
+
+        function showPreview(data) {
+            const modal = document.getElementById('previewModal');
+            const title = document.getElementById('previewTitle');
+            const content = document.getElementById('previewContent');
+            
+            title.textContent = data.file_name || '预览';
+            modal.classList.remove('hidden');
+            
+            if (data.type === 'text') {
+                content.innerHTML = `
+                    <textarea class="w-full h-full p-4 border border-gray-300 rounded font-mono text-sm" readonly>${escapeHtml(data.content)}</textarea>
+                `;
+            } else if (data.type === 'office' || data.type === 'pdf' || data.type === 'kkfileview') {
+                content.innerHTML = `
+                    <iframe src="${data.url}" class="w-full h-full border-0" style="min-height: 600px;"></iframe>
+                `;
+            } else if (data.type === 'url') {
+                // For images and other direct URLs
+                if (data.mime_type && data.mime_type.startsWith('image/')) {
+                    content.innerHTML = `
+                        <div class="flex items-center justify-center h-full">
+                            <img src="${data.url}" alt="${escapeHtml(data.file_name)}" class="max-w-full max-h-full">
+                        </div>
+                    `;
+                } else {
+                    content.innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="mb-4">无法预览此文件类型</p>
+                            <a href="${data.url}" target="_blank" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">下载文件</a>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function closePreview() {
+            document.getElementById('previewModal').classList.add('hidden');
+        }
+
+        function downloadFile() {
+            const decodedPassword = password ? decodeURIComponent(password) : '';
+            const url = `/shares/${code}/download${decodedPassword ? '?password=' + encodeURIComponent(decodedPassword) : ''}`;
+            window.open(API_BASE + url, '_blank');
         }
 
         function formatSize(bytes) {
+            if (!bytes) return '0 B';
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
             if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
             return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
         }
 
-        function downloadFile() {
-            const password = urlParams.get('password');
-            const url = `/shares/${code}/download${password ? '?password=' + password : ''}`;
-            window.open(API_BASE + url, '_blank');
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function showError(msg) {
             const content = document.getElementById('content');
             content.innerHTML = `
-                <div class="text-center text-red-600">
+                <div class="text-center text-red-600 py-8">
                     <p class="text-xl mb-4">❌</p>
-                    <p>${msg}</p>
+                    <p>${escapeHtml(msg)}</p>
                 </div>
             `;
         }
+
+        // Close preview on outside click
+        document.getElementById('previewModal').addEventListener('click', (e) => {
+            if (e.target.id === 'previewModal') {
+                closePreview();
+            }
+        });
 
         if (code) {
             loadShare();
@@ -123,4 +347,3 @@
     </script>
 </body>
 </html>
-

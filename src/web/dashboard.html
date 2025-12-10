@@ -5,12 +5,160 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GoPan - 我的网盘</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Heroicons for professional icons -->
+    <script src="https://cdn.jsdelivr.net/npm/heroicons@2.0.18/24/outline/index.js" type="module"></script>
     <style>
-        .file-item:hover { background-color: #f3f4f6; }
-        .file-item.selected { background-color: #dbeafe; }
+        /* 禁止文本选择 */
+        .file-list-container,
+        .file-list-container *,
+        .file-item,
+        .file-item * {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        /* 允许输入框和文本区域选择 */
+        input, textarea, [contenteditable] {
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+            -ms-user-select: text !important;
+            user-select: text !important;
+        }
+        .file-item:hover:not(.selected) { 
+            background-color: #f3f4f6; 
+        }
+        .file-item.selected { 
+            background-color: #0078d4 !important; 
+            color: white !important;
+        }
+        .file-item.selected:hover {
+            background-color: #0066b3 !important;
+        }
+        /* 选中时所有文字都变成白色 */
+        .file-item.selected * {
+            color: white !important;
+        }
+        .file-item.selected .text-gray-500,
+        .file-item.selected .text-gray-600,
+        .file-item.selected .text-gray-700,
+        .file-item.selected .text-gray-800,
+        .file-item.selected .text-gray-900 {
+            color: white !important;
+        }
+        /* 选中时表格单元格内的文字 */
+        .file-item.selected td {
+            color: white !important;
+        }
+        .file-item.selected td * {
+            color: white !important;
+        }
+        /* 选中时网格视图内的所有内容 */
+        .file-item.selected div {
+            color: white !important;
+        }
+        .file-item.selected div * {
+            color: white !important;
+        }
         .folder-icon { color: #fbbf24; }
         .file-icon { color: #6b7280; }
         .view-icon { width: 20px; height: 20px; }
+        /* 滑动选中框 */
+        .selection-box {
+            position: absolute;
+            border: 2px dashed #0078d4;
+            background: rgba(0, 120, 212, 0.2);
+            pointer-events: none;
+            z-index: 1000;
+            box-sizing: border-box;
+            display: none;
+            left: 0;
+            top: 0;
+            min-width: 0;
+            min-height: 0;
+        }
+        .selection-box:not(.hidden) {
+            display: block !important;
+            visibility: visible !important;
+        }
+        .file-list-container {
+            position: relative;
+            overflow: visible;
+        }
+        /* Windows资源管理器风格的文件夹树 */
+        .folder-tree {
+            font-size: 13px;
+            user-select: none;
+        }
+        .folder-tree-item {
+            position: relative;
+        }
+        .folder-tree-item button {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 2px 4px;
+            text-align: left;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            color: #333;
+            font-size: 13px;
+            line-height: 20px;
+        }
+        .folder-tree-item button:hover {
+            background-color: #e5f3ff;
+        }
+        .folder-tree-item button.selected {
+            background-color: #0078d4;
+            color: white;
+        }
+        .folder-tree-toggle {
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #666;
+            margin-right: 2px;
+            flex-shrink: 0;
+        }
+        .folder-tree-item button:hover .folder-tree-toggle {
+            color: #0078d4;
+        }
+        .folder-tree-item button.selected .folder-tree-toggle {
+            color: white;
+        }
+        .folder-tree-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .folder-tree-name {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .folder-tree-children {
+            margin-left: 0;
+        }
+        .folder-tree-line {
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background-color: #d1d5db;
+            pointer-events: none;
+        }
         /* Toast notification */
         .toast {
             position: fixed;
@@ -37,55 +185,84 @@
 </head>
 <body class="bg-gray-50 h-screen flex flex-col">
     <!-- Top Toolbar -->
-    <div class="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2">
+    <div class="bg-white border-b border-gray-200 px-2 sm:px-4 py-2 flex items-center gap-1 sm:gap-2 flex-wrap">
         <!-- Navigation Buttons - More Prominent -->
-        <div class="flex items-center gap-1 border-r border-gray-300 pr-2">
-            <button onclick="goBack()" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold" title="后退 (Alt+←)">← 后退</button>
-            <button onclick="goForward()" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold" title="前进 (Alt+→)">前进 →</button>
-            <button onclick="goUp()" class="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 font-semibold" title="返回上一级 (Backspace)">↑ 向上</button>
+        <div class="flex items-center gap-1 border-r border-gray-300 pr-1 sm:pr-2">
+            <button onclick="goBack()" class="px-2 sm:px-3 py-1 sm:py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-xs sm:text-sm flex items-center gap-1" title="后退 (Alt+←)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                <span class="hidden sm:inline">后退</span>
+            </button>
+            <button onclick="goForward()" class="px-2 sm:px-3 py-1 sm:py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-xs sm:text-sm flex items-center gap-1" title="前进 (Alt+→)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                <span class="hidden sm:inline">前进</span>
+            </button>
+            <button onclick="goUp()" class="px-2 sm:px-3 py-1 sm:py-2 bg-gray-600 text-white rounded hover:bg-gray-700 font-semibold text-xs sm:text-sm flex items-center gap-1" title="返回上一级 (Backspace)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                <span class="hidden sm:inline">向上</span>
+            </button>
         </div>
-        <div class="flex-1 mx-4">
-            <input type="text" id="pathInput" class="w-full px-3 py-1 border border-gray-300 rounded" placeholder="路径" onkeypress="if(event.key==='Enter') navigateToPath()">
+        <div class="flex-1 mx-2 sm:mx-4 min-w-0 flex items-center gap-2">
+            <input type="text" id="searchInput" class="flex-1 px-2 sm:px-3 py-1 border border-gray-300 rounded text-xs sm:text-sm" placeholder="搜索文件/文件夹名称..." onkeypress="if(event.key==='Enter') handleSearchOrNavigate()" onkeyup="handleSearchInput()">
+            <button onclick="handleSearchOrNavigate()" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs sm:text-sm flex items-center justify-center" title="搜索/跳转">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </button>
         </div>
-        <input type="text" id="searchInput" class="px-3 py-1 border border-gray-300 rounded w-64" placeholder="搜索文件..." onkeyup="searchFiles()">
         
         <!-- View Mode Dropdown -->
-        <div class="flex items-center gap-1 border-l border-gray-300 pl-2 ml-2">
-            <select id="viewModeSelect" onchange="setViewMode(this.value)" class="px-3 py-1 border border-gray-300 rounded bg-white">
+        <div class="flex items-center gap-1 border-l border-gray-300 pl-1 sm:pl-2 ml-1 sm:ml-2">
+            <select id="viewModeSelect" onchange="setViewMode(this.value)" class="px-2 sm:px-3 py-1 border border-gray-300 rounded bg-white text-xs sm:text-sm">
                 <option value="grid">大图标</option>
-                <option value="list">列表</option>
                 <option value="detail">详细信息</option>
             </select>
         </div>
         
-        <button onclick="uploadFile()" class="px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">上传</button>
-        <button onclick="createFolder()" class="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700">新建文件夹</button>
-        <button onclick="showMyShares()" class="px-4 py-1 bg-purple-600 text-white rounded hover:bg-purple-700">我的分享</button>
-        <button onclick="logout()" class="px-4 py-1 bg-red-600 text-white rounded hover:bg-red-700">退出</button>
+        <button onclick="uploadFile()" class="px-2 sm:px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs sm:text-sm flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <span>上传</span>
+        </button>
+        <button onclick="createFolder()" class="px-2 sm:px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs sm:text-sm hidden sm:inline-flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>新建</span>
+        </button>
+        <button onclick="showMyShares()" class="px-2 sm:px-4 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 text-xs sm:text-sm hidden md:inline-flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            <span>分享</span>
+        </button>
+        <button onclick="logout()" class="px-2 sm:px-4 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs sm:text-sm flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            <span>退出</span>
+        </button>
     </div>
 
     <div class="flex flex-1 overflow-hidden">
         <!-- Sidebar -->
-        <div class="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+        <div id="sidebar" class="hidden md:block w-64 bg-white border-r border-gray-200 p-2 sm:p-4 overflow-y-auto">
             <div class="mb-4">
-                <h3 class="font-semibold text-gray-700 mb-2">快速访问</h3>
+                <h3 class="font-semibold text-gray-700 mb-2 text-sm sm:text-base">快速访问</h3>
                 <div class="space-y-1">
-                    <button onclick="navigateToRoot()" class="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center gap-2">
-                        <span>📁</span> 我的文件
+                    <button onclick="navigateToRoot()" class="w-full text-left px-2 sm:px-3 py-1 sm:py-2 hover:bg-gray-100 rounded flex items-center gap-2 text-xs sm:text-sm">
+                        <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="hidden sm:inline">我的文件</span><span class="sm:hidden">文件</span>
                     </button>
-                    <button onclick="navigateToTrash()" class="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center gap-2">
-                        <span>🗑️</span> 回收站
+                    <button onclick="navigateToTrash()" class="w-full text-left px-2 sm:px-3 py-1 sm:py-2 hover:bg-gray-100 rounded flex items-center gap-2 text-xs sm:text-sm">
+                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        <span class="hidden sm:inline">回收站</span><span class="sm:hidden">回收</span>
                     </button>
                 </div>
             </div>
             <div>
-                <h3 class="font-semibold text-gray-700 mb-2">文件夹</h3>
+                <h3 class="font-semibold text-gray-700 mb-2 text-sm sm:text-base">文件夹</h3>
                 <div id="folderTree" class="space-y-1"></div>
             </div>
             <div class="mt-4">
-                <button onclick="refreshFolderTree()" class="text-sm text-blue-600 hover:underline">刷新</button>
+                <button onclick="refreshFolderTree()" class="text-xs sm:text-sm text-blue-600 hover:underline">刷新</button>
             </div>
         </div>
+        
+        <!-- Mobile Sidebar Toggle Button -->
+        <button id="sidebarToggle" onclick="toggleSidebar()" class="md:hidden fixed top-16 left-2 z-40 bg-white border border-gray-300 rounded p-2 shadow-lg">
+            <span class="text-lg">☰</span>
+        </button>
 
         <!-- Main Content -->
         <div class="flex-1 flex flex-col overflow-hidden">
@@ -95,19 +272,20 @@
             </div>
 
             <!-- File List -->
-            <div class="flex-1 overflow-y-auto p-4" id="fileList">
-                <div id="fileGrid" class="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4"></div>
-                <table id="fileTable" class="hidden w-full border-collapse">
+            <div class="flex-1 overflow-y-auto p-4 file-list-container" id="fileList" oncontextmenu="showBlankContextMenu(event)">
+                <div id="selectionBox" class="selection-box hidden"></div>
+                <div id="fileGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-4"></div>
+                <table id="fileTable" class="hidden w-full border-collapse text-xs sm:text-sm">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="border border-gray-200 px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('name')">
+                            <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('name')">
                                 名称 <span id="sortName" class="text-xs">↕</span>
                             </th>
-                            <th class="border border-gray-200 px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('size')">
+                            <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100 hidden sm:table-cell" onclick="sortFiles('size')">
                                 大小 <span id="sortSize" class="text-xs">↕</span>
                             </th>
-                            <th class="border border-gray-200 px-4 py-2 text-left">类型</th>
-                            <th class="border border-gray-200 px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('date')">
+                            <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left hidden md:table-cell">类型</th>
+                            <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('date')">
                                 修改时间 <span id="sortDate" class="text-xs">↕</span>
                             </th>
                         </tr>
@@ -123,22 +301,84 @@
         </div>
     </div>
 
-    <!-- Context Menu -->
+    <!-- Context Menu for Files -->
     <div id="contextMenu" class="hidden fixed bg-white border border-gray-300 rounded shadow-lg py-1 z-50" style="min-width: 150px;">
-        <button onclick="contextOpen()" class="w-full text-left px-4 py-2 hover:bg-gray-100">打开</button>
-        <button onclick="contextPreview()" class="w-full text-left px-4 py-2 hover:bg-gray-100">预览</button>
-        <button onclick="contextDownload()" class="w-full text-left px-4 py-2 hover:bg-gray-100">下载</button>
-        <button onclick="contextShare()" class="w-full text-left px-4 py-2 hover:bg-gray-100">分享</button>
+        <button onclick="contextOpen()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            <span>打开</span>
+        </button>
+        <button onclick="contextPreview()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            <span>预览</span>
+        </button>
+        <button onclick="contextDownload()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            <span>下载</span>
+        </button>
+        <button onclick="contextShare()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            <span>分享</span>
+        </button>
         <hr class="my-1">
-        <button onclick="contextRename()" class="w-full text-left px-4 py-2 hover:bg-gray-100">重命名</button>
-        <button onclick="contextCopy()" class="w-full text-left px-4 py-2 hover:bg-gray-100">复制</button>
-        <button onclick="contextCut()" class="w-full text-left px-4 py-2 hover:bg-gray-100">剪切</button>
-        <button onclick="contextPaste()" class="w-full text-left px-4 py-2 hover:bg-gray-100">粘贴</button>
+        <button onclick="contextRename()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            <span>重命名</span>
+        </button>
+        <button onclick="contextCopy()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+            <span>复制</span>
+        </button>
+        <button onclick="contextCut()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            <span>剪切</span>
+        </button>
+        <button onclick="contextPaste()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            <span>粘贴</span>
+        </button>
         <hr class="my-1">
-        <button onclick="contextDelete()" class="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600">删除</button>
-        <button id="contextRestore" onclick="contextRestore()" class="hidden w-full text-left px-4 py-2 hover:bg-gray-100 text-green-600">恢复</button>
-        <button id="contextPermanentDelete" onclick="contextPermanentDelete()" class="hidden w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600">永久删除</button>
-        <button onclick="contextProperties()" class="w-full text-left px-4 py-2 hover:bg-gray-100">属性</button>
+        <button onclick="contextDelete()" class="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <span>删除</span>
+        </button>
+        <button id="contextRestore" onclick="contextRestore()" class="hidden w-full text-left px-4 py-2 hover:bg-gray-100 text-green-600 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            <span>恢复</span>
+        </button>
+        <button id="contextPermanentDelete" onclick="contextPermanentDelete()" class="hidden w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <span>永久删除</span>
+        </button>
+        <button onclick="contextProperties()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>属性</span>
+        </button>
+    </div>
+
+    <!-- Context Menu for Blank Area -->
+    <div id="blankContextMenu" class="hidden fixed bg-white border border-gray-300 rounded shadow-lg py-1 z-50" style="min-width: 150px;">
+        <button onclick="contextCreateFolder()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>新建文件夹</span>
+        </button>
+        <button onclick="contextUploadFile()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <span>上传文件</span>
+        </button>
+        <hr class="my-1">
+        <button onclick="contextPaste()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+            <span>粘贴</span>
+        </button>
+        <hr class="my-1">
+        <button onclick="contextRefresh()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            <span>刷新</span>
+        </button>
+        <button onclick="contextSelectAll()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>全选</span>
+        </button>
     </div>
 
     <!-- Upload Dialog -->
@@ -151,7 +391,10 @@
             </div>
             <div id="uploadProgress" class="flex-1 overflow-y-auto space-y-3 mb-4"></div>
             <div class="flex justify-end gap-2">
-                <button onclick="closeUploadDialog()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">关闭</button>
+                <button onclick="closeUploadDialog()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <span>关闭</span>
+                </button>
             </div>
         </div>
     </div>
@@ -165,7 +408,10 @@
     <div id="previewPanel" class="hidden fixed inset-0 bg-white z-50 flex flex-col">
         <div class="bg-gray-100 border-b border-gray-200 px-4 py-2 flex items-center justify-between">
             <h2 id="previewTitle" class="text-lg font-semibold">预览</h2>
-            <button onclick="closePreviewPanel()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">关闭</button>
+            <button onclick="closePreviewPanel()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <span>关闭</span>
+            </button>
         </div>
         <div id="previewContent" class="flex-1 overflow-auto p-4"></div>
     </div>
@@ -191,8 +437,10 @@
         let clipboard = null;
         let history = [];
         let historyIndex = -1;
-        let viewMode = 'detail'; // 'grid', 'list', 'detail' - 默认详细信息视图
+        let viewMode = 'detail'; // 'grid', 'detail' - 默认详细信息视图
         let allFiles = [];
+        let sortField = 'name';
+        let sortOrder = 'asc';
 
         // Check authentication
         if (!token) {
@@ -204,13 +452,26 @@
             const overlay = document.getElementById('dialogOverlay');
             const contentDiv = document.getElementById('dialogContent');
             
+            // Map button text to icons
+            const iconMap = {
+                '确定': '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>',
+                '取消': '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>',
+                '关闭': '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>',
+                '保存': '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>',
+                '创建分享': '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>',
+                '管理分享': '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>',
+                '复制': '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>',
+                '删除': '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>',
+            };
+            
             let buttonsHtml = '';
             if (buttons.length === 0) {
-                buttonsHtml = '<button onclick="closeDialog()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">确定</button>';
+                buttonsHtml = '<button onclick="closeDialog()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>确定</span></button>';
             } else {
-                buttonsHtml = buttons.map(btn => 
-                    `<button onclick="${btn.onclick}" class="px-4 py-2 ${btn.class || 'bg-blue-600 text-white'} rounded hover:opacity-90">${btn.text}</button>`
-                ).join('');
+                buttonsHtml = buttons.map(btn => {
+                    const icon = iconMap[btn.text] || '';
+                    return `<button onclick="${btn.onclick}" class="px-4 py-2 ${btn.class || 'bg-blue-600 text-white'} rounded hover:opacity-90 flex items-center gap-2">${icon}<span>${btn.text}</span></button>`;
+                }).join('');
             }
             
             contentDiv.innerHTML = `
@@ -303,8 +564,16 @@
         async function loadFiles(parentId = null) {
             try {
                 showLoading();
-                const url = parentId ? `/files?parent_id=${parentId}` : '/files';
+                // Ensure parentId is converted to string for URL
+                const url = parentId ? `/files?parent_id=${parentId.toString()}` : '/files';
                 const response = await apiCall(url);
+                
+                // Check response status
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    throw new Error(errorData.error || `HTTP ${response.status}`);
+                }
+                
                 const data = await response.json();
                 allFiles = data.files || [];
                 
@@ -320,12 +589,208 @@
                 displayFiles(allFiles);
                 currentPath = parentId;
                 updateBreadcrumb();
+                updateFolderTreeSelection();
+                // Clear search input when navigating
+                if (!isSearchMode) {
+                    const searchInput = document.getElementById('searchInput');
+                    if (searchInput) {
+                        searchInput.value = '';
+                        searchInput.placeholder = '搜索文件/文件夹名称...';
+                    }
+                }
                 addToHistory(parentId);
             } catch (error) {
                 console.error('Failed to load files:', error);
-                showToast('加载文件失败', 'error');
+                const errorMessage = error.message || '加载文件失败';
+                showToast(errorMessage, 'error');
             } finally {
                 hideLoading();
+            }
+        }
+
+        // Handle search - only search by name
+        function handleSearchOrNavigate() {
+            const searchInput = document.getElementById('searchInput');
+            if (!searchInput) return;
+            
+            const value = searchInput.value.trim();
+            if (!value) {
+                // Empty input, exit search mode
+                if (isSearchMode) {
+                    isSearchMode = false;
+                    loadFiles(currentPath);
+                }
+                return;
+            }
+            
+            // Always perform global search by name
+            performGlobalSearch(value);
+        }
+
+        // Handle search input (debounced for real-time search)
+        function handleSearchInput() {
+            const searchInput = document.getElementById('searchInput');
+            if (!searchInput) return;
+            
+            const value = searchInput.value.trim();
+            
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            if (!value) {
+                // Exit search mode
+                if (isSearchMode) {
+                    isSearchMode = false;
+                    loadFiles(currentPath);
+                }
+                return;
+            }
+            
+            // Debounce search for real-time search
+            searchTimeout = setTimeout(() => {
+                performGlobalSearch(value);
+            }, 500);
+        }
+
+        // Navigate to path by ID
+        async function navigateToPathById(nodeId) {
+            try {
+                const response = await apiCall(`/files/${nodeId}`);
+                const node = await response.json();
+                if (node.type === 0) {
+                    loadFiles(nodeId);
+                    showToast('已跳转到文件夹', 'success');
+                } else {
+                    showToast('指定的ID不是文件夹', 'error');
+                }
+            } catch (error) {
+                showToast('无法访问指定的路径，ID不存在', 'error');
+            }
+        }
+
+        // Perform global search
+        async function performGlobalSearch(query) {
+            try {
+                showLoading();
+                isSearchMode = true;
+                const response = await apiCall(`/files/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                searchResults = data.files || [];
+                displaySearchResults(searchResults, query);
+                updateBreadcrumb();
+                document.getElementById('statusText').textContent = `找到 ${searchResults.length} 个结果`;
+            } catch (error) {
+                console.error('Search failed:', error);
+                showToast('搜索失败', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Display search results with path information
+        function displaySearchResults(files, query) {
+            const grid = document.getElementById('fileGrid');
+            const table = document.getElementById('fileTable');
+            const tableBody = document.getElementById('fileTableBody');
+            
+            if (viewMode === 'grid') {
+                grid.classList.remove('hidden');
+                table.classList.add('hidden');
+                grid.innerHTML = '';
+                files.forEach(file => {
+                    const div = document.createElement('div');
+                    div.className = 'file-item p-2 sm:p-4 border border-gray-200 rounded cursor-pointer';
+                    div.dataset.id = file.id.toString();
+                    div.onclick = (e) => {
+                        e.stopPropagation();
+                        if (file.type === 0) {
+                            // Exit search mode and navigate to folder
+                            isSearchMode = false;
+                            loadFiles(file.id);
+                        } else {
+                            openFile(file);
+                        }
+                    };
+                    div.oncontextmenu = (e) => showContextMenu(e, file);
+                    div.ondblclick = () => {
+                        if (file.type === 0) {
+                            // Exit search mode and navigate to folder
+                            isSearchMode = false;
+                            loadFiles(file.id);
+                        } else {
+                            openFile(file);
+                        }
+                    };
+                    
+                    const icon = file.type === 0 ? '📁' : '📄';
+                    const size = file.type === 1 ? formatSize(file.size) : '';
+                    const path = getFilePath(file);
+                    div.innerHTML = `
+                        <div class="text-center">
+                            <div class="text-2xl sm:text-4xl mb-1 sm:mb-2">${icon}</div>
+                            <div class="text-xs sm:text-sm font-medium truncate" title="${file.name}">${file.name}</div>
+                            ${size ? `<div class="text-xs text-gray-500">${size}</div>` : ''}
+                            <div class="text-xs text-gray-400 mt-1 truncate" title="${path}">${path}</div>
+                        </div>
+                    `;
+                    grid.appendChild(div);
+                });
+            } else { // detail view
+                grid.classList.add('hidden');
+                table.classList.remove('hidden');
+                tableBody.innerHTML = '';
+                files.forEach(file => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'file-item cursor-pointer';
+                    tr.dataset.id = file.id.toString();
+                    tr.onclick = (e) => {
+                        e.stopPropagation();
+                        if (file.type === 0) {
+                            // Exit search mode and navigate to folder
+                            isSearchMode = false;
+                            loadFiles(file.id);
+                        } else {
+                            openFile(file);
+                        }
+                    };
+                    tr.oncontextmenu = (e) => showContextMenu(e, file);
+                    tr.ondblclick = () => {
+                        if (file.type === 0) {
+                            // Exit search mode and navigate to folder
+                            isSearchMode = false;
+                            loadFiles(file.id);
+                        } else {
+                            openFile(file);
+                        }
+                    };
+                    const icon = file.type === 0 ? '📁' : '📄';
+                    const path = getFilePath(file);
+                    tr.innerHTML = `
+                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">
+                            ${icon} ${file.name}
+                            <div class="text-xs text-gray-400 mt-1">${path}</div>
+                        </td>
+                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden sm:table-cell">${file.type === 1 ? formatSize(file.size) : '-'}</td>
+                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden md:table-cell">${file.mime_type || '-'}</td>
+                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">${formatDate(file.updated_at)}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+            updateSelection();
+            updateStatus();
+        }
+
+        // Get file path for display
+        function getFilePath(file) {
+            if (file.parent) {
+                return `位置: ${file.parent.name}`;
+            } else if (file.parent_id) {
+                return `位置: 文件夹ID ${file.parent_id}`;
+            } else {
+                return '位置: 根目录';
             }
         }
 
@@ -351,8 +816,8 @@
                 grid.innerHTML = '';
                 files.forEach(file => {
                     const div = document.createElement('div');
-                    div.className = 'file-item p-4 border border-gray-200 rounded cursor-pointer';
-                    div.dataset.id = file.id;
+                    div.className = 'file-item p-2 sm:p-4 border border-gray-200 rounded cursor-pointer';
+                    div.dataset.id = file.id.toString();
                     div.onclick = (e) => selectFile(e, file.id, file);
                     div.oncontextmenu = (e) => showContextMenu(e, file);
                     div.ondblclick = () => openFile(file);
@@ -361,50 +826,30 @@
                     const size = file.type === 1 ? formatSize(file.size) : '';
                     div.innerHTML = `
                         <div class="text-center">
-                            <div class="text-4xl mb-2">${icon}</div>
-                            <div class="text-sm font-medium truncate" title="${file.name}">${file.name}</div>
+                            <div class="text-2xl sm:text-4xl mb-1 sm:mb-2">${icon}</div>
+                            <div class="text-xs sm:text-sm font-medium truncate" title="${file.name}">${file.name}</div>
                             ${size ? `<div class="text-xs text-gray-500">${size}</div>` : ''}
                         </div>
                     `;
                     grid.appendChild(div);
                 });
-            } else if (viewMode === 'list') {
+            } else { // detail view
                 grid.classList.add('hidden');
                 table.classList.remove('hidden');
                 tableBody.innerHTML = '';
                 files.forEach(file => {
                     const tr = document.createElement('tr');
                     tr.className = 'file-item cursor-pointer';
-                    tr.dataset.id = file.id;
+                    tr.dataset.id = file.id.toString();
                     tr.onclick = (e) => selectFile(e, file.id, file);
                     tr.oncontextmenu = (e) => showContextMenu(e, file);
                     tr.ondblclick = () => openFile(file);
                     const icon = file.type === 0 ? '📁' : '📄';
                     tr.innerHTML = `
-                        <td class="border border-gray-200 px-4 py-2">${icon} ${file.name}</td>
-                        <td class="border border-gray-200 px-4 py-2">${file.type === 1 ? formatSize(file.size) : '-'}</td>
-                        <td class="border border-gray-200 px-4 py-2">${file.type === 0 ? '文件夹' : '文件'}</td>
-                        <td class="border border-gray-200 px-4 py-2">${formatDate(file.updated_at)}</td>
-                    `;
-                    tableBody.appendChild(tr);
-                });
-            } else { // detail view (same as list but with more columns)
-                grid.classList.add('hidden');
-                table.classList.remove('hidden');
-                tableBody.innerHTML = '';
-                files.forEach(file => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'file-item cursor-pointer';
-                    tr.dataset.id = file.id;
-                    tr.onclick = (e) => selectFile(e, file.id, file);
-                    tr.oncontextmenu = (e) => showContextMenu(e, file);
-                    tr.ondblclick = () => openFile(file);
-                    const icon = file.type === 0 ? '📁' : '📄';
-                    tr.innerHTML = `
-                        <td class="border border-gray-200 px-4 py-2">${icon} ${file.name}</td>
-                        <td class="border border-gray-200 px-4 py-2">${file.type === 1 ? formatSize(file.size) : '-'}</td>
-                        <td class="border border-gray-200 px-4 py-2">${file.mime_type || '-'}</td>
-                        <td class="border border-gray-200 px-4 py-2">${formatDate(file.updated_at)}</td>
+                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">${icon} ${file.name}</td>
+                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden sm:table-cell">${file.type === 1 ? formatSize(file.size) : '-'}</td>
+                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden md:table-cell">${file.mime_type || '-'}</td>
+                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">${formatDate(file.updated_at)}</td>
                     `;
                     tableBody.appendChild(tr);
                 });
@@ -454,7 +899,9 @@
 
         function updateSelection() {
             document.querySelectorAll('.file-item').forEach(item => {
-                if (selectedFiles.has(item.dataset.id)) {
+                // 确保类型一致：dataset.id是字符串，需要转换为数字
+                const itemId = parseInt(item.dataset.id);
+                if (selectedFiles.has(itemId)) {
                     item.classList.add('selected');
                 } else {
                     item.classList.remove('selected');
@@ -477,8 +924,15 @@
                 return;
             }
             if (file.type === 0) {
+                // Exit search mode when opening folder
                 isSearchMode = false;
-                loadFiles(file.id);
+                // Ensure file.id is a number
+                const folderId = typeof file.id === 'string' ? parseInt(file.id) : file.id;
+                if (isNaN(folderId)) {
+                    showToast('无效的文件夹ID', 'error');
+                    return;
+                }
+                loadFiles(folderId);
             } else {
                 // Preview file instead of direct download
                 previewFile(file);
@@ -626,7 +1080,10 @@
             }
             
             html += `
-                        <button onclick="closePreviewPanel()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">关闭</button>
+                        <button onclick="closePreviewPanel()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <span>关闭</span>
+            </button>
                     </div>
                 </div>
             `;
@@ -893,8 +1350,48 @@
             }
         }
 
+        // Show context menu for blank area
+        function showBlankContextMenu(e) {
+            // Only show if clicking on the file list container itself, not on files
+            if (e.target.id === 'fileList' || e.target.id === 'fileGrid' || e.target.id === 'fileTable' || e.target.id === 'fileTableBody') {
+                e.preventDefault();
+                const menu = document.getElementById('blankContextMenu');
+                menu.style.left = e.pageX + 'px';
+                menu.style.top = e.pageY + 'px';
+                menu.classList.remove('hidden');
+            }
+        }
+
+        // Blank context menu actions
+        function contextCreateFolder() {
+            closeBlankContextMenu();
+            createFolder();
+        }
+
+        function contextUploadFile() {
+            closeBlankContextMenu();
+            uploadFile();
+        }
+
+        function contextRefresh() {
+            closeBlankContextMenu();
+            loadFiles(currentPath);
+        }
+
+        function contextSelectAll() {
+            closeBlankContextMenu();
+            selectedFiles.clear();
+            allFiles.forEach(file => selectedFiles.add(file.id));
+            updateSelection();
+        }
+
+        function closeBlankContextMenu() {
+            document.getElementById('blankContextMenu').classList.add('hidden');
+        }
+
         document.addEventListener('click', () => {
             document.getElementById('contextMenu').classList.add('hidden');
+            document.getElementById('blankContextMenu').classList.add('hidden');
         });
 
         function contextOpen() {
@@ -921,6 +1418,11 @@
         }
 
         function showShareDialog(file) {
+            // Save current state to restore after dialog closes
+            const wasSearchMode = isSearchMode;
+            const savedFiles = [...allFiles];
+            const savedPath = currentPath;
+            
             const dialogId = 'shareDialog_' + Date.now();
             showDialog('分享文件: ' + file.name, `
                 <div class="space-y-4">
@@ -937,27 +1439,61 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-2">访问密码（可选）</label>
-                        <input type="password" id="${dialogId}_password" placeholder="留空则不设密码" class="w-full px-3 py-2 border border-gray-300 rounded">
+                        <input type="password" id="${dialogId}_password" placeholder="留空则不设密码" class="w-full px-3 py-2 border border-gray-300 rounded" autocomplete="off">
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-2">最大访问次数（可选）</label>
-                        <input type="number" id="${dialogId}_maxCount" placeholder="0表示无限制" min="0" class="w-full px-3 py-2 border border-gray-300 rounded">
+                        <input type="number" id="${dialogId}_maxCount" placeholder="0表示无限制" min="0" class="w-full px-3 py-2 border border-gray-300 rounded" autocomplete="off">
                     </div>
                 </div>
             `, [
-                { text: '取消', onclick: 'closeDialog()', class: 'bg-gray-300 text-gray-700' },
+                { text: '取消', onclick: `closeShareDialog('${dialogId}', ${wasSearchMode}, ${JSON.stringify(savedFiles).replace(/"/g, '&quot;')}, ${savedPath !== null ? savedPath : 'null'})`, class: 'bg-gray-300 text-gray-700' },
                 { text: '创建分享', onclick: `createShare('${file.id}', '${dialogId}')`, class: 'bg-blue-600 text-white' }
             ]);
             
+            // Prevent dialog inputs from triggering search
+            setTimeout(() => {
+                const dialogInputs = document.querySelectorAll(`#${dialogId}_password, #${dialogId}_maxCount, #${dialogId}_days`);
+                dialogInputs.forEach(input => {
+                    input.addEventListener('keydown', (e) => {
+                        e.stopPropagation();
+                    });
+                    input.addEventListener('keyup', (e) => {
+                        e.stopPropagation();
+                    });
+                    input.addEventListener('input', (e) => {
+                        e.stopPropagation();
+                    });
+                });
+            }, 100);
+            
             // Show/hide expires field based on share type
-            document.getElementById(`${dialogId}_type`).addEventListener('change', (e) => {
-                const expiresDiv = document.getElementById(`${dialogId}_expires`);
-                if (e.target.value === '1') {
-                    expiresDiv.classList.remove('hidden');
-                } else {
-                    expiresDiv.classList.add('hidden');
+            setTimeout(() => {
+                const typeSelect = document.getElementById(`${dialogId}_type`);
+                if (typeSelect) {
+                    typeSelect.addEventListener('change', (e) => {
+                        const expiresDiv = document.getElementById(`${dialogId}_expires`);
+                        if (e.target.value === '1') {
+                            expiresDiv.classList.remove('hidden');
+                        } else {
+                            expiresDiv.classList.add('hidden');
+                        }
+                    });
                 }
-            });
+            }, 100);
+        }
+        
+        function closeShareDialog(dialogId, wasSearchMode, savedFiles, savedPath) {
+            closeDialog();
+            // Restore previous state if needed
+            if (wasSearchMode && savedFiles && savedFiles.length > 0) {
+                isSearchMode = wasSearchMode;
+                allFiles = savedFiles;
+                displayFiles(allFiles);
+            } else if (!wasSearchMode && savedPath !== null) {
+                isSearchMode = false;
+                loadFiles(savedPath);
+            }
         }
 
         async function createShare(fileId, dialogId) {
@@ -991,6 +1527,16 @@
                 const url = window.location.origin + '/share.html?code=' + data.code;
                 
                 closeDialog();
+                // Restore file list if in search mode
+                if (isSearchMode) {
+                    const searchInput = document.getElementById('searchInput');
+                    if (searchInput && searchInput.value.trim()) {
+                        performGlobalSearch(searchInput.value.trim());
+                    } else {
+                        isSearchMode = false;
+                        loadFiles(currentPath);
+                    }
+                }
                 showDialog('分享创建成功', `
                     <div class="space-y-4">
                         <p class="text-sm text-gray-600">分享链接已生成，点击下方按钮复制链接</p>
@@ -1036,18 +1582,23 @@
                 let sharesHtml = '<div class="space-y-2 max-h-96 overflow-y-auto">';
                 shares.forEach(share => {
                     const url = window.location.origin + '/share.html?code=' + share.code;
+                    const shareId = share.id || share.ID || 0; // Handle both lowercase and uppercase ID
+                    if (!shareId) {
+                        console.warn('Share missing ID:', share);
+                        return; // Skip shares without ID
+                    }
                     sharesHtml += `
                         <div class="border border-gray-200 rounded p-3">
                             <div class="flex items-center justify-between">
                                 <div class="flex-1">
-                                    <p class="font-medium">${share.node.name}</p>
-                                    <p class="text-sm text-gray-600">分享码: ${share.code}</p>
-                                    <p class="text-xs text-gray-500">访问次数: ${share.access_count}${share.max_access_count > 0 ? ` / ${share.max_access_count}` : ''}</p>
+                                    <p class="font-medium">${share.node ? share.node.name : '未知文件'}</p>
+                                    <p class="text-sm text-gray-600">分享码: ${share.code || ''}</p>
+                                    <p class="text-xs text-gray-500">访问次数: ${share.access_count || 0}${share.max_access_count > 0 ? ` / ${share.max_access_count}` : ''}</p>
                                     ${share.expires_at ? `<p class="text-xs text-gray-500">有效期至: ${new Date(share.expires_at).toLocaleString()}</p>` : '<p class="text-xs text-gray-500">永久有效</p>'}
                                 </div>
                                 <div class="flex gap-2 ml-4">
-                                    <button onclick="copyShareLink('${share.code}')" class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">复制链接</button>
-                                    <button onclick="deleteShare(${share.id})" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">删除</button>
+                                    <button onclick="copyShareLink('${share.code || ''}')" class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">复制链接</button>
+                                    <button onclick="deleteShare(${shareId})" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700">删除</button>
                                 </div>
                             </div>
                         </div>
@@ -1072,11 +1623,34 @@
         async function deleteShare(shareId) {
             showConfirm('确认删除', '确定要删除这个分享吗？', async () => {
                 try {
-                    await apiCall(`/shares/${shareId}`, { method: 'DELETE' });
+                    showLoading();
+                    // Ensure shareId is a number
+                    const id = typeof shareId === 'string' ? parseInt(shareId) : shareId;
+                    if (isNaN(id)) {
+                        showToast('无效的分享ID', 'error');
+                        hideLoading();
+                        return;
+                    }
+                    
+                    const response = await apiCall(`/shares/${id}`, { method: 'DELETE' });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                        throw new Error(errorData.error || `HTTP ${response.status}`);
+                    }
+                    
                     showToast('删除成功', 'success');
-                    showMyShares(); // Refresh list
+                    closeDialog(); // Close the shares dialog
+                    // Refresh shares list after a short delay
+                    setTimeout(() => {
+                        showMyShares();
+                    }, 300);
                 } catch (error) {
-                    showToast('删除失败', 'error');
+                    console.error('Delete share error:', error);
+                    const errorMessage = error.message || '删除失败';
+                    showToast(errorMessage, 'error');
+                } finally {
+                    hideLoading();
                 }
             });
         }
@@ -1112,9 +1686,11 @@
         async function contextPaste() {
             if (!clipboard) return;
             try {
+                // 确保 parent_id 始终是字符串
+                const parentId = currentPath === null ? 'root' : currentPath.toString();
                 await apiCall('/files/' + (clipboard.type === 'copy' ? 'copy' : 'move'), {
                     method: 'PUT',
-                    body: JSON.stringify({ ids: clipboard.files, parent_id: currentPath || 'root' })
+                    body: JSON.stringify({ ids: clipboard.files, parent_id: parentId })
                 });
                 showToast('操作成功', 'success');
                 loadFiles(currentPath);
@@ -1273,7 +1849,9 @@
 
             const formData = new FormData();
             formData.append('file', file);
-            if (currentPath) formData.append('parent_id', currentPath);
+            // 确保 parent_id 始终是字符串
+            const parentId = currentPath === null ? 'root' : currentPath.toString();
+            formData.append('parent_id', parentId);
 
             try {
                 const xhr = new XMLHttpRequest();
@@ -1339,13 +1917,24 @@
             showPrompt('新建文件夹', '请输入文件夹名称:', '', async (name) => {
                 if (name) {
                     try {
-                        await apiCall('/files/folder', {
+                        // 确保 parent_id 始终是字符串
+                        const parentId = currentPath === null ? 'root' : currentPath.toString();
+                        const response = await apiCall('/files/folder', {
                             method: 'POST',
-                            body: JSON.stringify({ name, parent_id: currentPath || 'root' })
+                            body: JSON.stringify({ name, parent_id: parentId })
                         });
-                        showToast('创建成功', 'success');
-                        loadFiles(currentPath);
+                        if (response.ok) {
+                            showToast('创建成功', 'success');
+                            // 延迟刷新以确保服务器已处理完成
+                            setTimeout(() => {
+                                loadFiles(currentPath);
+                            }, 300);
+                        } else {
+                            const error = await response.json();
+                            showToast(error.error || '创建文件夹失败', 'error');
+                        }
                     } catch (error) {
+                        console.error('Create folder error:', error);
                         showToast('创建文件夹失败', 'error');
                     }
                 }
@@ -1400,6 +1989,185 @@
             });
         }
 
+        // Drag selection (滑动选中)
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let dragSelectionBox = null;
+        let fileListContainer = null;
+        
+        // Initialize drag selection after DOM is ready
+        function initDragSelection() {
+            fileListContainer = document.getElementById('fileList');
+            if (!fileListContainer) {
+                console.error('fileListContainer not found');
+                return;
+            }
+            
+            dragSelectionBox = document.getElementById('selectionBox');
+            if (!dragSelectionBox) {
+                console.error('selectionBox not found');
+                return;
+            }
+            
+            fileListContainer.addEventListener('mousedown', (e) => {
+                // Only start drag selection if clicking on empty area (not on file items)
+                const isFileItem = e.target.closest('.file-item');
+                
+                // Check if clicking on empty area
+                if (!isFileItem) {
+                    // Check if clicking on container, grid, table, or their children (but not file items)
+                    const target = e.target;
+                    const isContainer = target.id === 'fileList' || 
+                                       target.id === 'fileGrid' || 
+                                       target.id === 'fileTable' || 
+                                       target.id === 'fileTableBody' ||
+                                       target.id === 'selectionBox' ||
+                                       target === fileListContainer ||
+                                       (target.closest('#fileList') === fileListContainer && !target.closest('.file-item'));
+                    
+                    if (isContainer) {
+                        // Prevent text selection and default behavior
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        isDragging = true;
+                        dragStartX = e.clientX;
+                        dragStartY = e.clientY;
+                        
+                        // Clear previous selection if not holding Ctrl
+                        if (!e.ctrlKey && !e.shiftKey) {
+                            selectedFiles.clear();
+                            updateSelection();
+                        }
+                        
+                        // Re-get selection box in case DOM was recreated
+                        if (!dragSelectionBox) {
+                            dragSelectionBox = document.getElementById('selectionBox');
+                        }
+                        
+                        if (dragSelectionBox) {
+                            // Initialize selection box
+                            const rect = fileListContainer.getBoundingClientRect();
+                            const startX = dragStartX - rect.left + fileListContainer.scrollLeft;
+                            const startY = dragStartY - rect.top + fileListContainer.scrollTop;
+                            
+                            // Ensure selection box is visible and positioned correctly
+                            dragSelectionBox.classList.remove('hidden');
+                            dragSelectionBox.style.position = 'absolute';
+                            dragSelectionBox.style.display = 'block';
+                            dragSelectionBox.style.visibility = 'visible';
+                            dragSelectionBox.style.opacity = '1';
+                            dragSelectionBox.style.left = startX + 'px';
+                            dragSelectionBox.style.top = startY + 'px';
+                            dragSelectionBox.style.width = '0px';
+                            dragSelectionBox.style.height = '0px';
+                            dragSelectionBox.style.zIndex = '1000';
+                        }
+                    }
+                }
+            });
+        }
+
+        // Use document-level listeners for mousemove and mouseup to handle mouse leaving the container
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                // Prevent text selection during drag
+                e.preventDefault();
+                
+                // Re-get elements in case they were recreated
+                if (!fileListContainer) {
+                    fileListContainer = document.getElementById('fileList');
+                }
+                if (!dragSelectionBox) {
+                    dragSelectionBox = document.getElementById('selectionBox');
+                }
+                
+                if (dragSelectionBox && fileListContainer) {
+                    const currentX = e.clientX;
+                    const currentY = e.clientY;
+                    
+                    const rect = fileListContainer.getBoundingClientRect();
+                    const startX = dragStartX - rect.left + fileListContainer.scrollLeft;
+                    const startY = dragStartY - rect.top + fileListContainer.scrollTop;
+                    const currentXRel = currentX - rect.left + fileListContainer.scrollLeft;
+                    const currentYRel = currentY - rect.top + fileListContainer.scrollTop;
+                    
+                    const left = Math.min(startX, currentXRel);
+                    const top = Math.min(startY, currentYRel);
+                    const width = Math.abs(currentXRel - startX);
+                    const height = Math.abs(currentYRel - startY);
+                    
+                    // Always update box position and size
+                    dragSelectionBox.classList.remove('hidden');
+                    dragSelectionBox.style.position = 'absolute';
+                    dragSelectionBox.style.display = 'block';
+                    dragSelectionBox.style.visibility = 'visible';
+                    dragSelectionBox.style.opacity = '1';
+                    dragSelectionBox.style.left = left + 'px';
+                    dragSelectionBox.style.top = top + 'px';
+                    dragSelectionBox.style.width = Math.max(width, 2) + 'px';
+                    dragSelectionBox.style.height = Math.max(height, 2) + 'px';
+                    dragSelectionBox.style.zIndex = '1000';
+                    
+                    // Select files within selection box
+                    selectFilesInBox(dragStartX, dragStartY, currentX, currentY);
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                
+                // Clear any text selection that might have occurred
+                if (window.getSelection) {
+                    window.getSelection().removeAllRanges();
+                } else if (document.selection) {
+                    document.selection.empty();
+                }
+                
+                if (!dragSelectionBox) {
+                    dragSelectionBox = document.getElementById('selectionBox');
+                }
+                if (dragSelectionBox) {
+                    dragSelectionBox.classList.add('hidden');
+                    dragSelectionBox.style.display = 'none';
+                    dragSelectionBox.style.visibility = 'hidden';
+                }
+            }
+        });
+
+        function selectFilesInBox(x1, y1, x2, y2) {
+            if (!fileListContainer) return;
+            
+            // Use screen coordinates for comparison (simpler and more reliable)
+            const boxLeft = Math.min(x1, x2);
+            const boxRight = Math.max(x1, x2);
+            const boxTop = Math.min(y1, y2);
+            const boxBottom = Math.max(y1, y2);
+            
+            // Only select files that are within the fileList container
+            const fileItems = fileListContainer.querySelectorAll('.file-item');
+            fileItems.forEach(item => {
+                const itemRect = item.getBoundingClientRect();
+                
+                // Check if item overlaps with selection box using screen coordinates
+                const overlaps = !(itemRect.right < boxLeft || 
+                                 itemRect.left > boxRight || 
+                                 itemRect.bottom < boxTop || 
+                                 itemRect.top > boxBottom);
+                
+                if (overlaps) {
+                    const itemId = parseInt(item.dataset.id);
+                    if (!isNaN(itemId) && !selectedFiles.has(itemId)) {
+                        selectedFiles.add(itemId);
+                    }
+                }
+            });
+            updateSelection();
+        }
+
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'F5') {
@@ -1416,81 +2184,164 @@
             }
         });
 
-        // Drag and drop upload
-        const fileList = document.getElementById('fileList');
-        fileList.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            fileList.classList.add('bg-blue-50');
-        });
-        fileList.addEventListener('dragleave', () => {
-            fileList.classList.remove('bg-blue-50');
-        });
-        fileList.addEventListener('drop', (e) => {
-            e.preventDefault();
-            fileList.classList.remove('bg-blue-50');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                const fileInput = document.getElementById('fileInput');
-                const dataTransfer = new DataTransfer();
-                Array.from(files).forEach(file => dataTransfer.items.add(file));
-                fileInput.files = dataTransfer.files;
-                uploadFile();
-                handleFileSelect({ target: fileInput });
+        // Drag and drop upload - initialize after DOM is ready
+        function initDragAndDrop() {
+            fileListContainer = document.getElementById('fileList');
+            if (!fileListContainer) {
+                console.error('fileListContainer not found for drag and drop');
+                return;
             }
-        });
+            
+            fileListContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileListContainer.classList.add('bg-blue-50');
+            });
+            fileListContainer.addEventListener('dragleave', () => {
+                fileListContainer.classList.remove('bg-blue-50');
+            });
+            fileListContainer.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileListContainer.classList.remove('bg-blue-50');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const fileInput = document.getElementById('fileInput');
+                    const dataTransfer = new DataTransfer();
+                    Array.from(files).forEach(file => dataTransfer.items.add(file));
+                    fileInput.files = dataTransfer.files;
+                    uploadFile();
+                    handleFileSelect({ target: fileInput });
+                }
+            });
+        }
 
         // Folder Tree
         async function loadFolderTree() {
             try {
                 const response = await apiCall('/files/tree');
                 const data = await response.json();
-                renderFolderTree(data.tree || [], document.getElementById('folderTree'));
+                const container = document.getElementById('folderTree');
+                if (container) {
+                    // Preserve expanded state
+                    const currentExpanded = new Set(expandedFolders);
+                    expandedFolders = currentExpanded;
+                    renderFolderTree(data.tree || [], container);
+                    // Update selection after rendering
+                    setTimeout(() => updateFolderTreeSelection(), 100);
+                }
             } catch (error) {
                 console.error('Failed to load folder tree:', error);
             }
         }
 
-        function renderFolderTree(tree, container, level = 0) {
+        function renderFolderTree(tree, container, level = 0, parentPath = '') {
             container.innerHTML = '';
             if (tree.length === 0) {
-                container.innerHTML = '<p class="text-xs text-gray-500">暂无文件夹</p>';
+                container.innerHTML = '<p class="text-xs text-gray-500 px-2 py-1">暂无文件夹</p>';
                 return;
             }
             
-            tree.forEach(item => {
+            tree.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = 'folder-tree-item';
-                div.style.paddingLeft = (level * 16) + 'px';
                 
                 const hasChildren = item.children && item.children.length > 0;
                 const itemId = 'folder_' + item.id;
+                const itemPath = parentPath ? `${parentPath}_${index}` : `${index}`;
+                const isExpanded = expandedFolders.has(item.id);
+                
+                // Windows风格的展开/折叠图标
+                const toggleIcon = hasChildren ? (isExpanded ? '▼' : '▶') : ' ';
                 
                 div.innerHTML = `
-                    <button onclick="toggleFolder('${itemId}')" class="w-full text-left px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1 text-sm">
-                        <span id="${itemId}_icon" class="text-xs">${hasChildren ? '▼' : '▶'}</span>
-                        <span>📁</span>
-                        <span class="truncate flex-1" onclick="event.stopPropagation(); loadFiles(${item.id})">${item.name}</span>
+                    <button 
+                        id="${itemId}_btn"
+                        onclick="handleFolderClick('${itemId}', ${item.id}, ${hasChildren})" 
+                        class="folder-tree-item-btn ${currentPath === item.id ? 'selected' : ''}"
+                        data-folder-id="${item.id}">
+                        <span class="folder-tree-toggle" id="${itemId}_toggle">${toggleIcon}</span>
+                        <span class="folder-tree-icon">📁</span>
+                        <span class="folder-tree-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
                     </button>
-                    <div id="${itemId}_children" class="${hasChildren ? '' : 'hidden'} mt-1"></div>
+                    <div id="${itemId}_children" class="folder-tree-children ${isExpanded ? '' : 'hidden'}"></div>
                 `;
                 container.appendChild(div);
                 
-                if (hasChildren) {
+                if (hasChildren && isExpanded) {
                     const childrenDiv = document.getElementById(`${itemId}_children`);
-                    renderFolderTree(item.children, childrenDiv, level + 1);
+                    renderFolderTree(item.children, childrenDiv, level + 1, itemPath);
+                }
+            });
+        }
+        
+        let expandedFolders = new Set();
+        
+        function handleFolderClick(itemId, folderId, hasChildren) {
+            if (hasChildren) {
+                toggleFolder(itemId, folderId);
+            }
+            // Always navigate to folder
+            loadFiles(folderId);
+        }
+        
+        function toggleFolder(itemId, folderId) {
+            const childrenDiv = document.getElementById(`${itemId}_children`);
+            const toggle = document.getElementById(`${itemId}_toggle`);
+            
+            if (childrenDiv.classList.contains('hidden')) {
+                childrenDiv.classList.remove('hidden');
+                toggle.textContent = '▼';
+                expandedFolders.add(folderId);
+                
+                // If children not loaded yet, load them
+                if (childrenDiv.innerHTML === '') {
+                    // Re-render tree to load children
+                    loadFolderTree();
+                }
+            } else {
+                childrenDiv.classList.add('hidden');
+                toggle.textContent = '▶';
+                expandedFolders.delete(folderId);
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Update folder tree selection when path changes
+        function updateFolderTreeSelection() {
+            document.querySelectorAll('.folder-tree-item-btn').forEach(btn => {
+                const folderId = parseInt(btn.dataset.folderId);
+                if (folderId === currentPath) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
                 }
             });
         }
 
-        function toggleFolder(itemId) {
-            const childrenDiv = document.getElementById(`${itemId}_children`);
-            const icon = document.getElementById(`${itemId}_icon`);
-            if (childrenDiv.classList.contains('hidden')) {
-                childrenDiv.classList.remove('hidden');
-                icon.textContent = '▼';
+        // Toggle sidebar on mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (sidebar.classList.contains('hidden')) {
+                sidebar.classList.remove('hidden');
+                sidebar.classList.add('fixed', 'inset-y-0', 'left-0', 'z-30');
+                if (!overlay) {
+                    const newOverlay = document.createElement('div');
+                    newOverlay.id = 'sidebarOverlay';
+                    newOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden';
+                    newOverlay.onclick = toggleSidebar;
+                    document.body.appendChild(newOverlay);
+                }
             } else {
-                childrenDiv.classList.add('hidden');
-                icon.textContent = '▶';
+                sidebar.classList.add('hidden');
+                sidebar.classList.remove('fixed', 'inset-y-0', 'left-0', 'z-30');
+                if (overlay) {
+                    overlay.remove();
+                }
             }
         }
 
@@ -1499,9 +2350,6 @@
         }
 
         // File sorting
-        let sortField = 'name';
-        let sortOrder = 'asc';
-
         function sortFiles(field) {
             if (sortField === field) {
                 sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
@@ -1554,7 +2402,11 @@
         if (viewModeSelect) {
             viewModeSelect.value = 'detail';
         }
-        loadFiles();
+        // Initialize drag selection and drag & drop
+        initDragSelection();
+        initDragAndDrop();
+        // Load files and folder tree on page load (default to root)
+        loadFiles(null); // null means root directory
         loadFolderTree();
     </script>
 </body>

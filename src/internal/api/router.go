@@ -87,6 +87,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// Public share routes
 		api.GET("/shares/:code", shareHandler.GetShare)
 		api.GET("/shares/:code/download", shareHandler.DownloadShare)
+		api.GET("/shares/:code/folder/:id", shareHandler.GetShareFolder)
+		api.GET("/shares/:code/preview/:id", shareHandler.PreviewShareFile)
 	}
 
 	return router
