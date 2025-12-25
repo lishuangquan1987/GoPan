@@ -69,12 +69,9 @@ func (h *PreviewHandler) GetPreview(c *gin.Context) {
 		mimeType = getMimeTypeFromExt(ext)
 	}
 
-	// Generate presigned URL for MinIO
-	presignedURL, err := storage.GetClient().PresignedGetObject(ctx, h.cfg.MinIO.BucketName, n.MinioObject, 1*time.Hour, nil)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate preview URL"})
-		return
-	}
+	// Use GoPan proxy URL instead of MinIO presigned URL
+	// This ensures HTTPS access and avoids mixed content issues
+	proxyURL := h.getProxyURL(c, nodeID)
 
 	// For text files (txt, md, etc.), return content directly for editing
 	if isTextFile(mimeType) || ext == ".txt" || ext == ".md" {
@@ -100,9 +97,9 @@ func (h *PreviewHandler) GetPreview(c *gin.Context) {
 		return
 	}
 
-	// For Office documents (Word, Excel, PPT), use traditional web preview
+	// For Office documents (Word, Excel, PPT), use Office Online Viewer with proxy URL
 	if isOfficeDocument(ext) {
-		previewURL := h.getOfficePreviewURL(presignedURL.String(), n.Name, ext)
+		previewURL := h.getOfficePreviewURL(proxyURL, n.Name, ext)
 		c.JSON(http.StatusOK, gin.H{
 			"type":      "office",
 			"url":       previewURL,
@@ -113,9 +110,9 @@ func (h *PreviewHandler) GetPreview(c *gin.Context) {
 		return
 	}
 
-	// For PDF, use PDF.js for preview
+	// For PDF, use PDF.js for preview with proxy URL
 	if ext == ".pdf" {
-		previewURL := h.getPDFPreviewURL(presignedURL.String(), n.Name)
+		previewURL := h.getPDFPreviewURL(proxyURL, n.Name)
 		c.JSON(http.StatusOK, gin.H{
 			"type":      "pdf",
 			"url":       previewURL,
@@ -125,9 +122,21 @@ func (h *PreviewHandler) GetPreview(c *gin.Context) {
 		return
 	}
 
-	// For other files, use kkFileView if enabled, otherwise use direct URL
+	// For images, return direct proxy URL (browser can display directly)
+	if strings.HasPrefix(mimeType, "image/") {
+		c.JSON(http.StatusOK, gin.H{
+			"type":      "url",
+			"url":       proxyURL,
+			"mime_type": mimeType,
+			"file_name": n.Name,
+		})
+		return
+	}
+
+	// For other files, use kkFileView if enabled (through GoPan proxy)
 	if h.cfg.Preview.KKFileView.Enabled && h.cfg.Preview.KKFileView.BaseURL != "" {
-		kkFileViewURL := h.getKKFileViewURL(presignedURL.String(), n.Name)
+		// Use GoPan's kkFileView proxy endpoint
+		kkFileViewURL := h.getKKFileViewProxyURL(c, nodeID, n.Name)
 		c.JSON(http.StatusOK, gin.H{
 			"type":      "kkfileview",
 			"url":       kkFileViewURL,
@@ -137,10 +146,10 @@ func (h *PreviewHandler) GetPreview(c *gin.Context) {
 		return
 	}
 
-	// Fallback to direct URL
+	// Fallback to proxy URL
 	c.JSON(http.StatusOK, gin.H{
 		"type":      "url",
-		"url":       presignedURL.String(),
+		"url":       proxyURL,
 		"mime_type": mimeType,
 		"file_name": n.Name,
 	})
@@ -208,11 +217,70 @@ func isOfficeDocument(ext string) bool {
 	return false
 }
 
-// getKKFileViewURL generates kkFileView preview URL
-func (h *PreviewHandler) getKKFileViewURL(fileURL, fileName string) string {
-	// kkFileView format: http://kkfileview:8012/onlinePreview?url=encoded_file_url
-	encodedURL := base64.URLEncoding.EncodeToString([]byte(fileURL))
-	return fmt.Sprintf("%s/onlinePreview?url=%s", h.cfg.Preview.KKFileView.BaseURL, encodedURL)
+// getProxyURL generates GoPan proxy URL for file access
+func (h *PreviewHandler) getProxyURL(c *gin.Context, fileID int) string {
+	scheme := "https"
+	if c.GetHeader("X-Forwarded-Proto") != "" {
+		scheme = c.GetHeader("X-Forwarded-Proto")
+	} else if c.Request.TLS == nil {
+		scheme = "http"
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	
+	// Get token from Authorization header or query parameter
+	token := ""
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			token = parts[1]
+		}
+	}
+	if token == "" {
+		token = c.Query("token")
+	}
+	
+	// Include token in URL for iframe previews
+	if token != "" {
+		return fmt.Sprintf("%s://%s/api/files/%d/proxy?token=%s", scheme, host, fileID, url.QueryEscape(token))
+	}
+	return fmt.Sprintf("%s://%s/api/files/%d/proxy", scheme, host, fileID)
+}
+
+// getKKFileViewProxyURL generates kkFileView preview URL through GoPan proxy
+func (h *PreviewHandler) getKKFileViewProxyURL(c *gin.Context, fileID int, fileName string) string {
+	scheme := "https"
+	if c.GetHeader("X-Forwarded-Proto") != "" {
+		scheme = c.GetHeader("X-Forwarded-Proto")
+	} else if c.Request.TLS == nil {
+		scheme = "http"
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	
+	// Get token from Authorization header or query parameter
+	token := ""
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			token = parts[1]
+		}
+	}
+	if token == "" {
+		token = c.Query("token")
+	}
+	
+	// Use GoPan's kkFileView proxy endpoint with token
+	if token != "" {
+		return fmt.Sprintf("%s://%s/api/preview/kkfileview/%d?token=%s", scheme, host, fileID, url.QueryEscape(token))
+	}
+	return fmt.Sprintf("%s://%s/api/preview/kkfileview/%d", scheme, host, fileID)
 }
 
 // getOfficePreviewURL generates Office document preview URL using Office Online or similar
@@ -229,5 +297,160 @@ func (h *PreviewHandler) getPDFPreviewURL(fileURL, fileName string) string {
 	// Format: /pdfjs/web/viewer.html?file=file_url
 	encodedURL := url.QueryEscape(fileURL)
 	return fmt.Sprintf("/pdfjs/web/viewer.html?file=%s", encodedURL)
+}
+
+// ProxyKKFileView handles GET /api/preview/kkfileview/:id - Proxy kkFileView requests
+func (h *PreviewHandler) ProxyKKFileView(c *gin.Context) {
+	userID := c.GetString("userID")
+	id := c.Param("id")
+
+	ctx := c.Request.Context()
+
+	// Parse IDs
+	uid, err := strconv.Atoi(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	nodeID, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file ID"})
+		return
+	}
+
+	// Get file
+	n, err := database.Client.Node.Query().
+		Where(node.IDEQ(nodeID)).
+		Where(node.HasOwnerWith(user.IDEQ(uid))).
+		Where(node.TypeEQ(1)). // Only files
+		Where(node.IsDeletedEQ(false)).
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+
+	// Generate proxy URL for the file (with token for authentication)
+	scheme := "https"
+	if c.GetHeader("X-Forwarded-Proto") != "" {
+		scheme = c.GetHeader("X-Forwarded-Proto")
+	} else if c.Request.TLS == nil {
+		scheme = "http"
+	}
+	host := c.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = c.Request.Host
+	}
+	
+	// Get token from query parameter or header
+	token := c.Query("token")
+	if token == "" {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" {
+			parts := strings.Split(authHeader, " ")
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				token = parts[1]
+			}
+		}
+	}
+	
+	// Include token in file proxy URL
+	var fileProxyURL string
+	if token != "" {
+		fileProxyURL = fmt.Sprintf("%s://%s/api/files/%d/proxy?token=%s", scheme, host, nodeID, url.QueryEscape(token))
+	} else {
+		fileProxyURL = fmt.Sprintf("%s://%s/api/files/%d/proxy", scheme, host, nodeID)
+	}
+
+	// Build kkFileView URL with the proxy URL
+	encodedURL := base64.URLEncoding.EncodeToString([]byte(fileProxyURL))
+	
+	// Get the path from URL (e.g., /api/preview/kkfileview/123/onlinePreview -> /onlinePreview)
+	// Gin's wildcard param includes the leading slash
+	kkFileViewPath := c.Param("path")
+	if kkFileViewPath == "" {
+		kkFileViewPath = "/onlinePreview"
+	} else if !strings.HasPrefix(kkFileViewPath, "/") {
+		kkFileViewPath = "/" + kkFileViewPath
+	}
+	// Remove leading slash if it's just "/" (use default)
+	if kkFileViewPath == "/" {
+		kkFileViewPath = "/onlinePreview"
+	}
+	
+	// Build query string (only include kkFileView-specific parameters)
+	query := url.Values{}
+	query.Set("url", encodedURL)
+	query.Set("fullfilename", n.Name)
+	
+	// Proxy request to kkFileView
+	kkFileViewURL := fmt.Sprintf("%s%s?%s", 
+		h.cfg.Preview.KKFileView.BaseURL, 
+		kkFileViewPath,
+		query.Encode())
+
+	// Forward the request to kkFileView
+	req, err := http.NewRequestWithContext(ctx, c.Request.Method, kkFileViewURL, c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
+		return
+	}
+
+	// Copy headers (exclude some headers that shouldn't be forwarded)
+	skipHeaders := map[string]bool{
+		"Host":              true,
+		"Connection":        true,
+		"Upgrade":           true,
+		"Content-Length":    true,
+		"Transfer-Encoding": true,
+	}
+	for key, values := range c.Request.Header {
+		if skipHeaders[key] {
+			continue
+		}
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+
+	// Make request to kkFileView
+	client := &http.Client{
+		Timeout: 60 * time.Second,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to proxy request to kkFileView: %v. kkFileView URL: %s", err, kkFileViewURL),
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers (but skip some that shouldn't be copied)
+	skipResponseHeaders := map[string]bool{
+		"Content-Length":    true,
+		"Transfer-Encoding": true,
+		"Connection":        true,
+	}
+	for key, values := range resp.Header {
+		if skipResponseHeaders[key] {
+			continue
+		}
+		for _, value := range values {
+			c.Header(key, value)
+		}
+	}
+
+	// Set status code
+	c.Status(resp.StatusCode)
+
+	// Stream response body
+	_, err = io.Copy(c.Writer, resp.Body)
+	if err != nil {
+		// Log error but don't send another response (headers already sent)
+		// This is a common issue when client disconnects
+		return
+	}
 }
 

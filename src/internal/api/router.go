@@ -58,6 +58,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				files.GET("/tree", fileHandler.GetFileTree)
 				files.GET("/:id", fileHandler.GetFile)
 				files.GET("/:id/download", fileHandler.DownloadFile)
+				files.GET("/:id/proxy", fileHandler.ProxyFile)
 				files.PUT("/:id", fileHandler.RenameFile)
 				files.PUT("/move", fileHandler.MoveFiles)
 				files.PUT("/copy", fileHandler.CopyFiles)
@@ -81,6 +82,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			previews := protected.Group("/preview")
 			{
 				previews.GET("/:id", previewHandler.GetPreview)
+				previews.Any("/kkfileview/:id", previewHandler.ProxyKKFileView)
+				previews.Any("/kkfileview/:id/*path", previewHandler.ProxyKKFileView)
 			}
 		}
 

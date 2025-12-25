@@ -475,6 +475,54 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 	c.DataFromReader(http.StatusOK, n.Size, n.MimeType, object, nil)
 }
 
+// ProxyFile handles GET /api/files/:id/proxy - Proxy file for preview (no download header)
+func (h *FileHandler) ProxyFile(c *gin.Context) {
+	userID := c.GetString("userID")
+	id := c.Param("id")
+
+	ctx := c.Request.Context()
+
+	// Parse IDs
+	uid, err := parseUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	nodeID, err := parseNodeID(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file ID"})
+		return
+	}
+
+	// Get file
+	n, err := database.Client.Node.Query().
+		Where(node.IDEQ(nodeID)).
+		Where(node.HasOwnerWith(user.IDEQ(uid))).
+		Where(node.TypeEQ(1)). // Only files
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+
+	// Get object from MinIO
+	object, err := storage.GetClient().GetObject(ctx, h.cfg.MinIO.BucketName, n.MinioObject, minio.GetObjectOptions{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get file from storage"})
+		return
+	}
+	defer object.Close()
+
+	// Set headers for preview (no Content-Disposition, so browser can display inline)
+	c.Header("Content-Type", n.MimeType)
+	c.Header("Content-Length", strconv.FormatInt(n.Size, 10))
+	c.Header("Cache-Control", "public, max-age=3600")
+
+	// Stream file
+	c.DataFromReader(http.StatusOK, n.Size, n.MimeType, object, nil)
+}
+
 // RenameFile handles PUT /api/files/:id - Rename file
 func (h *FileHandler) RenameFile(c *gin.Context) {
 	userID := c.GetString("userID")
