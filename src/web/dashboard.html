@@ -64,6 +64,27 @@
         .folder-icon { color: #fbbf24; }
         .file-icon { color: #6b7280; }
         .view-icon { width: 20px; height: 20px; }
+        
+        /* 文件类型图标系统 */
+        .file-type-icon {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+        
+        /* 根据文件扩展名显示不同颜色 */
+        .file-icon-folder { color: #fbbf24; }
+        .file-icon-image { color: #10b981; }
+        .file-icon-video { color: #ef4444; }
+        .file-icon-audio { color: #8b5cf6; }
+        .file-icon-document { color: #3b82f6; }
+        .file-icon-pdf { color: #dc2626; }
+        .file-icon-archive { color: #f59e0b; }
+        .file-icon-code { color: #6366f1; }
+        .file-icon-default { color: #6b7280; }
         /* 滑动选中框 */
         .selection-box {
             position: absolute;
@@ -181,72 +202,515 @@
             justify-content: center;
             z-index: 9999;
         }
+        /* 移动端优化样式 */
+        @media (max-width: 640px) {
+            /* 工具栏按钮触摸优化 */
+            button {
+                min-height: 44px; /* iOS推荐的最小触摸目标 */
+                touch-action: manipulation; /* 禁用双击缩放 */
+            }
+            
+            /* 移动端工具栏重新设计 */
+            .toolbar-mobile {
+                padding: 8px;
+                gap: 8px;
+            }
+            
+            /* 移动端顶部操作栏 */
+            .mobile-top-bar {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 0;
+            }
+            
+            /* 移动端搜索栏 */
+            .mobile-search-bar {
+                flex: 1;
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+            
+            .mobile-search-bar input {
+                flex: 1;
+                padding: 10px 12px;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                font-size: 14px;
+            }
+            
+            /* 移动端操作按钮组 */
+            .mobile-actions {
+                display: flex;
+                gap: 8px;
+                padding: 10px 0;
+                border-top: 1px solid #e5e7eb;
+                margin-top: 6px;
+            }
+            
+            .mobile-actions button {
+                flex: 1;
+                padding: 12px;
+                border-radius: 10px;
+                font-size: 14px;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                transition: all 0.2s;
+            }
+            
+            .mobile-actions button:active {
+                transform: scale(0.96);
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            }
+            
+            /* 文件列表卡片式布局（移动端详细信息视图） */
+            .mobile-file-list {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .mobile-file-card {
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                padding: 14px;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                transition: all 0.2s ease;
+                -webkit-tap-highlight-color: rgba(0, 120, 212, 0.1);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+                margin-bottom: 2px;
+            }
+            
+            .mobile-file-card:active {
+                background: #f9fafb;
+                transform: scale(0.98);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            
+            .mobile-file-card.selected {
+                background: linear-gradient(135deg, #0078d4 0%, #0066b3 100%);
+                color: white;
+                border-color: #0078d4;
+                box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+            }
+            
+            .mobile-file-card.selected * {
+                color: white !important;
+            }
+            
+            .mobile-file-icon {
+                font-size: 36px;
+                flex-shrink: 0;
+                width: 52px;
+                height: 52px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+                border-radius: 10px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            }
+            
+            .mobile-file-card.selected .mobile-file-icon {
+                background: rgba(255, 255, 255, 0.25);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            
+            .mobile-file-info {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            
+            .mobile-file-name {
+                font-size: 16px;
+                font-weight: 600;
+                margin: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                line-height: 1.3;
+            }
+            
+            .mobile-file-meta {
+                font-size: 13px;
+                color: #6b7280;
+                display: flex;
+                flex-direction: row;
+                gap: 12px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            
+            .mobile-file-meta span {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+            
+            .mobile-file-card.selected .mobile-file-meta {
+                color: rgba(255, 255, 255, 0.95);
+            }
+            
+            /* 空状态提示 */
+            .mobile-empty-state {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 60px 20px;
+                text-align: center;
+                color: #9ca3af;
+            }
+            
+            .mobile-empty-state-icon {
+                font-size: 64px;
+                margin-bottom: 16px;
+                opacity: 0.5;
+            }
+            
+            .mobile-empty-state-text {
+                font-size: 16px;
+                font-weight: 500;
+                margin-bottom: 8px;
+                color: #6b7280;
+            }
+            
+            .mobile-empty-state-hint {
+                font-size: 14px;
+                color: #9ca3af;
+            }
+            
+            /* 隐藏桌面端表格，使用卡片布局 */
+            .file-table-mobile {
+                display: none !important;
+            }
+            
+            /* 移动端网格视图优化 */
+            #fileGrid {
+                gap: 12px;
+                padding: 12px;
+            }
+            
+            #fileGrid .file-item {
+                padding: 16px;
+                border-radius: 12px;
+                border: 1px solid #e5e7eb;
+                background: white;
+                transition: all 0.2s;
+            }
+            
+            #fileGrid .file-item:active {
+                transform: scale(0.95);
+            }
+            
+            /* 面包屑导航在手机上优化 */
+            .breadcrumb-mobile {
+                font-size: 13px;
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                padding: 8px 12px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+            
+            .breadcrumb-mobile a,
+            .breadcrumb-mobile span {
+                padding: 4px 8px;
+                border-radius: 6px;
+                transition: background 0.2s;
+                white-space: nowrap;
+                display: inline-block;
+            }
+            
+            .breadcrumb-mobile a:active {
+                background: #f3f4f6;
+            }
+            
+            .breadcrumb-mobile .breadcrumb-separator {
+                color: #9ca3af;
+                padding: 0 4px;
+            }
+            
+            /* 侧边栏移动端抽屉效果 */
+            #sidebar.mobile-sidebar {
+                position: fixed;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 280px;
+                max-width: 85vw;
+                z-index: 50;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+            }
+            #sidebar.mobile-sidebar.open {
+                transform: translateX(0);
+            }
+            
+            /* 侧边栏遮罩层 */
+            .sidebar-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 40;
+                display: none;
+            }
+            .sidebar-overlay.show {
+                display: block;
+            }
+            
+            /* Toast在手机上位置调整 */
+            .toast {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: calc(100% - 20px);
+            }
+            
+            /* 对话框在手机上全屏 */
+            #dialogContent {
+                max-width: 100%;
+                margin: 0;
+                border-radius: 0;
+                height: 100vh;
+                max-height: 100vh;
+            }
+            
+            /* 上下文菜单在手机上优化 */
+            #contextMenu,
+            #blankContextMenu {
+                min-width: 200px;
+                max-width: calc(100vw - 20px); /* 确保不超出屏幕宽度 */
+                font-size: 14px;
+                border-radius: 12px;
+                max-height: calc(100vh - 20px); /* 最大高度不超过视口 */
+                overflow-y: auto; /* 如果菜单项太多，可以滚动 */
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* 增强阴影，更明显 */
+            }
+            #contextMenu button,
+            #blankContextMenu button {
+                padding: 14px 16px;
+                min-height: 48px;
+                font-size: 15px;
+                white-space: nowrap; /* 防止文字换行 */
+            }
+            
+            /* 状态栏优化 */
+            #statusText {
+                font-size: 13px;
+                font-weight: 500;
+                padding: 10px 12px;
+            }
+            
+            /* 下拉刷新 - 仅移动端 */
+            .pull-to-refresh {
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .pull-to-refresh-indicator {
+                position: absolute;
+                top: -50px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: none; /* 默认隐藏 */
+                align-items: center;
+                gap: 8px;
+                color: #6b7280;
+                font-size: 14px;
+                transition: top 0.3s ease;
+                z-index: 10;
+            }
+            
+            /* 仅在移动端显示下拉刷新指示器 */
+            @media (max-width: 640px) {
+                .pull-to-refresh-indicator {
+                    display: flex;
+                }
+            }
+            
+            .pull-to-refresh-indicator.active {
+                top: 20px;
+            }
+            
+            .pull-to-refresh-indicator.refreshing {
+                top: 20px;
+            }
+            
+            /* 优化工具栏间距 */
+            .mobile-top-bar {
+                padding: 10px 0;
+            }
+            
+            /* 优化导航按钮组 */
+            .mobile-nav-buttons {
+                display: flex;
+                gap: 6px;
+            }
+            
+            .mobile-nav-buttons button {
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+        /* 触摸设备优化 */
+        @media (hover: none) and (pointer: coarse) {
+            .file-item:hover:not(.selected) {
+                background-color: transparent;
+            }
+            .file-item:active:not(.selected) {
+                background-color: #f3f4f6;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 h-screen flex flex-col">
     <!-- Top Toolbar -->
-    <div class="bg-white border-b border-gray-200 px-2 sm:px-4 py-2 flex items-center gap-1 sm:gap-2 flex-wrap">
-        <!-- Navigation Buttons - More Prominent -->
-        <div class="flex items-center gap-1 border-r border-gray-300 pr-1 sm:pr-2">
-            <button onclick="goBack()" class="px-2 sm:px-3 py-1 sm:py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-xs sm:text-sm flex items-center gap-1" title="后退 (Alt+←)">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                <span class="hidden sm:inline">后退</span>
+    <div class="bg-white border-b border-gray-200 toolbar-mobile">
+        <!-- 桌面端工具栏 -->
+        <div class="hidden sm:flex items-center gap-2 px-4 py-2">
+            <!-- Navigation Buttons -->
+            <div class="flex items-center gap-1 border-r border-gray-300 pr-2">
+                <button onclick="goBack()" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm flex items-center gap-1" title="后退">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    <span>后退</span>
+                </button>
+                <button onclick="goForward()" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm flex items-center gap-1" title="前进">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    <span>前进</span>
+                </button>
+                <button onclick="goUp()" class="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 font-semibold text-sm flex items-center gap-1" title="向上">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                    <span>向上</span>
+                </button>
+            </div>
+            
+            <!-- 搜索框 -->
+            <div class="flex-1 mx-2 min-w-0 flex items-center gap-2">
+                <input type="text" id="searchInput" class="flex-1 px-3 py-2 border border-gray-300 rounded text-sm" placeholder="搜索文件/文件夹名称..." onkeypress="if(event.key==='Enter') handleSearchOrNavigate()" onkeyup="handleSearchInput()">
+                <button onclick="handleSearchOrNavigate()" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center justify-center" title="搜索">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </button>
+            </div>
+            
+            <!-- View Mode Dropdown -->
+            <div class="flex items-center gap-1 border-l border-gray-300 pl-2 ml-2">
+                <select id="viewModeSelect" onchange="setViewMode(this.value)" class="px-3 py-2 border border-gray-300 rounded bg-white text-sm">
+                    <option value="grid">大图标</option>
+                    <option value="detail">详细信息</option>
+                </select>
+            </div>
+            
+            <!-- 主要操作按钮 -->
+            <button onclick="uploadFile()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center gap-1" title="上传">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                <span>上传</span>
             </button>
-            <button onclick="goForward()" class="px-2 sm:px-3 py-1 sm:py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-xs sm:text-sm flex items-center gap-1" title="前进 (Alt+→)">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                <span class="hidden sm:inline">前进</span>
+            <button onclick="createFolder()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm flex items-center gap-1" title="新建文件夹">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>新建</span>
             </button>
-            <button onclick="goUp()" class="px-2 sm:px-3 py-1 sm:py-2 bg-gray-600 text-white rounded hover:bg-gray-700 font-semibold text-xs sm:text-sm flex items-center gap-1" title="返回上一级 (Backspace)">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
-                <span class="hidden sm:inline">向上</span>
+            <button onclick="showMyShares()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm flex items-center gap-1" title="我的分享">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                <span>分享</span>
             </button>
-        </div>
-        <div class="flex-1 mx-2 sm:mx-4 min-w-0 flex items-center gap-2">
-            <input type="text" id="searchInput" class="flex-1 px-2 sm:px-3 py-1 border border-gray-300 rounded text-xs sm:text-sm" placeholder="搜索文件/文件夹名称..." onkeypress="if(event.key==='Enter') handleSearchOrNavigate()" onkeyup="handleSearchInput()">
-            <button onclick="handleSearchOrNavigate()" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs sm:text-sm flex items-center justify-center" title="搜索/跳转">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <button onclick="logout()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm flex items-center gap-1" title="退出">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                <span>退出</span>
             </button>
         </div>
         
-        <!-- View Mode Dropdown -->
-        <div class="flex items-center gap-1 border-l border-gray-300 pl-1 sm:pl-2 ml-1 sm:ml-2">
-            <select id="viewModeSelect" onchange="setViewMode(this.value)" class="px-2 sm:px-3 py-1 border border-gray-300 rounded bg-white text-xs sm:text-sm">
-                <option value="grid">大图标</option>
-                <option value="detail">详细信息</option>
-            </select>
+        <!-- 移动端工具栏 -->
+        <div class="sm:hidden">
+            <!-- 第一行：搜索和导航 -->
+            <div class="mobile-top-bar px-3">
+                <button onclick="toggleSidebar()" class="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 flex items-center justify-center" style="min-width: 44px; min-height: 44px;">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <div class="mobile-search-bar">
+                    <input type="text" id="searchInputMobile" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="搜索..." onkeypress="if(event.key==='Enter') handleSearchOrNavigate()" onkeyup="handleSearchInput()">
+                    <button onclick="handleSearchOrNavigate()" class="p-2 bg-blue-600 text-white rounded-lg active:bg-blue-700 flex items-center justify-center" style="min-width: 44px; min-height: 44px;">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 第二行：导航和视图切换 -->
+            <div class="flex items-center gap-2 px-3 pb-2">
+                <div class="flex items-center gap-1 mobile-nav-buttons">
+                    <button onclick="goBack()" class="p-2 bg-blue-600 text-white rounded-lg active:bg-blue-700 flex items-center justify-center" style="min-width: 44px; min-height: 44px;">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <button onclick="goForward()" class="p-2 bg-blue-600 text-white rounded-lg active:bg-blue-700 flex items-center justify-center" style="min-width: 44px; min-height: 44px;">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                    <button onclick="goUp()" class="p-2 bg-gray-600 text-white rounded-lg active:bg-gray-700 flex items-center justify-center" style="min-width: 44px; min-height: 44px;">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                    </button>
+                </div>
+                <select id="viewModeSelectMobile" onchange="setViewMode(this.value)" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    <option value="grid">大图标</option>
+                    <option value="detail">列表</option>
+                </select>
+            </div>
+            
+            <!-- 第三行：主要操作按钮 -->
+            <div class="mobile-actions px-3">
+                <button onclick="uploadFile()" class="bg-blue-600 text-white active:bg-blue-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <span>上传</span>
+                </button>
+                <button onclick="createFolder()" class="bg-green-600 text-white active:bg-green-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    <span>新建</span>
+                </button>
+                <button onclick="logout()" class="bg-red-600 text-white active:bg-red-700">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    <span>退出</span>
+                </button>
+            </div>
         </div>
-        
-        <button onclick="uploadFile()" class="px-2 sm:px-4 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs sm:text-sm flex items-center gap-1">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-            <span>上传</span>
-        </button>
-        <button onclick="createFolder()" class="px-2 sm:px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs sm:text-sm hidden sm:inline-flex items-center gap-1">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            <span>新建</span>
-        </button>
-        <button onclick="showMyShares()" class="px-2 sm:px-4 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 text-xs sm:text-sm hidden md:inline-flex items-center gap-1">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-            <span>分享</span>
-        </button>
-        <button onclick="logout()" class="px-2 sm:px-4 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs sm:text-sm flex items-center gap-1">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-            <span>退出</span>
-        </button>
     </div>
 
+    <!-- 侧边栏遮罩层（移动端） -->
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    
     <div class="flex flex-1 overflow-hidden">
         <!-- Sidebar -->
-        <div id="sidebar" class="hidden md:block w-64 bg-white border-r border-gray-200 p-2 sm:p-4 overflow-y-auto">
+        <div id="sidebar" class="hidden md:block w-64 bg-white border-r border-gray-200 p-2 sm:p-4 overflow-y-auto mobile-sidebar">
             <div class="mb-4">
+                <!-- 移动端侧边栏标题和关闭按钮 -->
+                <div class="flex items-center justify-between mb-4 md:hidden border-b border-gray-200 pb-3">
+                    <h2 class="font-bold text-lg">菜单</h2>
+                    <button onclick="toggleSidebar()" class="p-2 hover:bg-gray-100 rounded">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
                 <h3 class="font-semibold text-gray-700 mb-2 text-sm sm:text-base">快速访问</h3>
                 <div class="space-y-1">
-                    <button onclick="navigateToRoot()" class="w-full text-left px-2 sm:px-3 py-1 sm:py-2 hover:bg-gray-100 rounded flex items-center gap-2 text-xs sm:text-sm">
-                        <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                        <span class="hidden sm:inline">我的文件</span><span class="sm:hidden">文件</span>
+                    <button onclick="navigateToRoot(); toggleSidebar();" class="w-full text-left px-2 sm:px-3 py-2 sm:py-2 hover:bg-gray-100 active:bg-gray-200 rounded flex items-center gap-2 text-sm">
+                        <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span>我的文件</span>
                     </button>
-                    <button onclick="navigateToTrash()" class="w-full text-left px-2 sm:px-3 py-1 sm:py-2 hover:bg-gray-100 rounded flex items-center gap-2 text-xs sm:text-sm">
-                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        <span class="hidden sm:inline">回收站</span><span class="sm:hidden">回收</span>
+                    <button onclick="navigateToTrash(); toggleSidebar();" class="w-full text-left px-2 sm:px-3 py-2 sm:py-2 hover:bg-gray-100 active:bg-gray-200 rounded flex items-center gap-2 text-sm">
+                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        <span>回收站</span>
                     </button>
                 </div>
             </div>
@@ -255,47 +719,57 @@
                 <div id="folderTree" class="space-y-1"></div>
             </div>
             <div class="mt-4">
-                <button onclick="refreshFolderTree()" class="text-xs sm:text-sm text-blue-600 hover:underline">刷新</button>
+                <button onclick="refreshFolderTree()" class="text-xs sm:text-sm text-blue-600 hover:underline active:text-blue-800">刷新</button>
             </div>
         </div>
         
-        <!-- Mobile Sidebar Toggle Button -->
-        <button id="sidebarToggle" onclick="toggleSidebar()" class="md:hidden fixed top-16 left-2 z-40 bg-white border border-gray-300 rounded p-2 shadow-lg">
-            <span class="text-lg">☰</span>
-        </button>
+        <!-- Mobile Sidebar Toggle Button - 已移动到工具栏，这里不再需要 -->
 
         <!-- Main Content -->
         <div class="flex-1 flex flex-col overflow-hidden">
             <!-- Breadcrumb -->
-            <div class="bg-white border-b border-gray-200 px-4 py-2">
-                <div id="breadcrumb" class="flex items-center gap-2 text-sm"></div>
+            <div class="bg-white border-b border-gray-200 px-2 sm:px-4 py-2">
+                <div id="breadcrumb" class="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm breadcrumb-mobile overflow-x-auto"></div>
             </div>
 
             <!-- File List -->
-            <div class="flex-1 overflow-y-auto p-4 file-list-container" id="fileList" oncontextmenu="showBlankContextMenu(event)">
+            <div class="flex-1 overflow-y-auto p-2 sm:p-4 file-list-container pull-to-refresh" id="fileList" oncontextmenu="showBlankContextMenu(event)">
+                <!-- 下拉刷新指示器 -->
+                <div id="pullToRefreshIndicator" class="pull-to-refresh-indicator">
+                    <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>下拉刷新</span>
+                </div>
                 <div id="selectionBox" class="selection-box hidden"></div>
+                <!-- 移动端卡片列表 -->
+                <div id="mobileFileList" class="mobile-file-list hidden sm:hidden"></div>
+                <!-- 桌面端网格视图 -->
                 <div id="fileGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-4"></div>
-                <table id="fileTable" class="hidden w-full border-collapse text-xs sm:text-sm">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('name')">
-                                名称 <span id="sortName" class="text-xs">↕</span>
-                            </th>
-                            <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100 hidden sm:table-cell" onclick="sortFiles('size')">
-                                大小 <span id="sortSize" class="text-xs">↕</span>
-                            </th>
-                            <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left hidden md:table-cell">类型</th>
-                            <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100" onclick="sortFiles('date')">
-                                修改时间 <span id="sortDate" class="text-xs">↕</span>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody id="fileTableBody"></tbody>
-                </table>
+                <!-- 桌面端表格视图 -->
+                <div class="overflow-x-auto -mx-2 sm:mx-0 hidden sm:block">
+                    <table id="fileTable" class="hidden w-full border-collapse text-xs sm:text-sm min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100 active:bg-gray-200 whitespace-nowrap" onclick="sortFiles('name')">
+                                    名称 <span id="sortName" class="text-xs">↕</span>
+                                </th>
+                                <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100 active:bg-gray-200 hidden sm:table-cell whitespace-nowrap" onclick="sortFiles('size')">
+                                    大小 <span id="sortSize" class="text-xs">↕</span>
+                                </th>
+                                <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left hidden md:table-cell whitespace-nowrap">类型</th>
+                                <th class="border border-gray-200 px-2 sm:px-4 py-2 text-left cursor-pointer hover:bg-gray-100 active:bg-gray-200 whitespace-nowrap" onclick="sortFiles('date')">
+                                    修改时间 <span id="sortDate" class="text-xs">↕</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTableBody"></tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Status Bar -->
-            <div class="bg-white border-t border-gray-200 px-4 py-2 text-sm text-gray-600">
+            <div class="bg-white border-t border-gray-200 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-600">
                 <span id="statusText">就绪</span>
             </div>
         </div>
@@ -554,8 +1028,12 @@
         function setViewMode(mode) {
             viewMode = mode;
             const select = document.getElementById('viewModeSelect');
+            const selectMobile = document.getElementById('viewModeSelectMobile');
             if (select) {
                 select.value = mode;
+            }
+            if (selectMobile) {
+                selectMobile.value = mode;
             }
             displayFiles(allFiles);
         }
@@ -609,10 +1087,22 @@
         }
 
         // Handle search - only search by name
+        // 同步搜索输入框
+        function syncSearchInputs() {
+            const desktopInput = document.getElementById('searchInput');
+            const mobileInput = document.getElementById('searchInputMobile');
+            if (desktopInput && mobileInput) {
+                const value = desktopInput.value || mobileInput.value;
+                desktopInput.value = value;
+                mobileInput.value = value;
+            }
+        }
+        
         function handleSearchOrNavigate() {
-            const searchInput = document.getElementById('searchInput');
+            const searchInput = document.getElementById('searchInput') || document.getElementById('searchInputMobile');
             if (!searchInput) return;
             
+            syncSearchInputs();
             const value = searchInput.value.trim();
             if (!value) {
                 // Empty input, exit search mode
@@ -629,7 +1119,7 @@
 
         // Handle search input (debounced for real-time search)
         function handleSearchInput() {
-            const searchInput = document.getElementById('searchInput');
+            const searchInput = document.getElementById('searchInput') || document.getElementById('searchInputMobile');
             if (!searchInput) return;
             
             const value = searchInput.value.trim();
@@ -694,6 +1184,8 @@
             const grid = document.getElementById('fileGrid');
             const table = document.getElementById('fileTable');
             const tableBody = document.getElementById('fileTableBody');
+            const mobileList = document.getElementById('mobileFileList');
+            const isMobile = window.innerWidth < 640;
             
             if (viewMode === 'grid') {
                 grid.classList.remove('hidden');
@@ -738,46 +1230,111 @@
                     grid.appendChild(div);
                 });
             } else { // detail view
-                grid.classList.add('hidden');
-                table.classList.remove('hidden');
-                tableBody.innerHTML = '';
-                files.forEach(file => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'file-item cursor-pointer';
-                    tr.dataset.id = file.id.toString();
-                    tr.onclick = (e) => {
-                        e.stopPropagation();
-                        if (file.type === 0) {
-                            // Exit search mode and navigate to folder
-                            isSearchMode = false;
-                            loadFiles(file.id);
-                        } else {
-                            openFile(file);
-                        }
-                    };
-                    tr.oncontextmenu = (e) => showContextMenu(e, file);
-                    tr.ondblclick = () => {
-                        if (file.type === 0) {
-                            // Exit search mode and navigate to folder
-                            isSearchMode = false;
-                            loadFiles(file.id);
-                        } else {
-                            openFile(file);
-                        }
-                    };
-                    const icon = file.type === 0 ? '📁' : '📄';
-                    const path = getFilePath(file);
-                    tr.innerHTML = `
-                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">
-                            ${icon} ${file.name}
-                            <div class="text-xs text-gray-400 mt-1">${path}</div>
-                        </td>
-                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden sm:table-cell">${file.type === 1 ? formatSize(file.size) : '-'}</td>
-                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden md:table-cell">${file.mime_type || '-'}</td>
-                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">${formatDate(file.updated_at)}</td>
-                    `;
-                    tableBody.appendChild(tr);
-                });
+                if (isMobile) {
+                    // 移动端使用卡片式布局
+                    grid.classList.add('hidden');
+                    table.classList.add('hidden');
+                    mobileList.classList.remove('hidden');
+                    mobileList.innerHTML = '';
+                    
+                    if (files.length === 0) {
+                        mobileList.innerHTML = `
+                            <div class="mobile-empty-state">
+                                <div class="mobile-empty-state-icon">🔍</div>
+                                <div class="mobile-empty-state-text">未找到匹配的文件</div>
+                                <div class="mobile-empty-state-hint">尝试使用其他关键词搜索</div>
+                            </div>
+                        `;
+                    } else {
+                        files.forEach(file => {
+                            const card = document.createElement('div');
+                            card.className = 'mobile-file-card file-item';
+                            card.dataset.id = file.id.toString();
+                            card.onclick = (e) => {
+                                e.stopPropagation();
+                                if (file.type === 0) {
+                                    isSearchMode = false;
+                                    loadFiles(file.id);
+                                } else {
+                                    openFile(file);
+                                }
+                            };
+                            card.oncontextmenu = (e) => showContextMenu(e, file);
+                            card.ondblclick = () => {
+                                if (file.type === 0) {
+                                    isSearchMode = false;
+                                    loadFiles(file.id);
+                                } else {
+                                    openFile(file);
+                                }
+                            };
+                            
+                            const iconInfo = getFileIcon(file);
+                            const size = file.type === 1 ? formatSize(file.size) : '';
+                            const date = formatDate(file.updated_at);
+                            const path = getFilePath(file);
+                            
+                            const metaItems = [];
+                            if (size) metaItems.push(`<span>📦 ${size}</span>`);
+                            metaItems.push(`<span>🕒 ${date}</span>`);
+                            metaItems.push(`<span class="text-xs opacity-75">📍 ${path}</span>`);
+                            
+                            card.innerHTML = `
+                                <div class="mobile-file-icon ${iconInfo.class}">
+                                    <div class="file-type-icon">${iconInfo.emoji}</div>
+                                </div>
+                                <div class="mobile-file-info">
+                                    <div class="mobile-file-name">${file.name}</div>
+                                    <div class="mobile-file-meta">
+                                        ${metaItems.join('')}
+                                    </div>
+                                </div>
+                            `;
+                            mobileList.appendChild(card);
+                        });
+                    }
+                } else {
+                    // 桌面端使用表格
+                    mobileList.classList.add('hidden');
+                    grid.classList.add('hidden');
+                    table.classList.remove('hidden');
+                    tableBody.innerHTML = '';
+                    files.forEach(file => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'file-item cursor-pointer';
+                        tr.dataset.id = file.id.toString();
+                        tr.onclick = (e) => {
+                            e.stopPropagation();
+                            if (file.type === 0) {
+                                isSearchMode = false;
+                                loadFiles(file.id);
+                            } else {
+                                openFile(file);
+                            }
+                        };
+                        tr.oncontextmenu = (e) => showContextMenu(e, file);
+                        tr.ondblclick = () => {
+                            if (file.type === 0) {
+                                isSearchMode = false;
+                                loadFiles(file.id);
+                            } else {
+                                openFile(file);
+                            }
+                        };
+                        const icon = file.type === 0 ? '📁' : '📄';
+                        const path = getFilePath(file);
+                        tr.innerHTML = `
+                            <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">
+                                ${icon} ${file.name}
+                                <div class="text-xs text-gray-400 mt-1">${path}</div>
+                            </td>
+                            <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden sm:table-cell">${file.type === 1 ? formatSize(file.size) : '-'}</td>
+                            <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden md:table-cell">${file.mime_type || '-'}</td>
+                            <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">${formatDate(file.updated_at)}</td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+                }
             }
             updateSelection();
             updateStatus();
@@ -806,13 +1363,22 @@
             const grid = document.getElementById('fileGrid');
             const table = document.getElementById('fileTable');
             const tableBody = document.getElementById('fileTableBody');
+            const mobileList = document.getElementById('mobileFileList');
+            const isMobile = window.innerWidth < 640;
             
             // Update sort indicators
             updateSortIndicators();
             
             if (viewMode === 'grid') {
-                grid.classList.remove('hidden');
-                table.classList.add('hidden');
+                // 网格视图
+                if (isMobile) {
+                    mobileList.classList.add('hidden');
+                    grid.classList.remove('hidden');
+                } else {
+                    mobileList.classList.add('hidden');
+                    grid.classList.remove('hidden');
+                    table.classList.add('hidden');
+                }
                 grid.innerHTML = '';
                 files.forEach(file => {
                     const div = document.createElement('div');
@@ -822,11 +1388,11 @@
                     div.oncontextmenu = (e) => showContextMenu(e, file);
                     div.ondblclick = () => openFile(file);
                     
-                    const icon = file.type === 0 ? '📁' : '📄';
+                    const iconInfo = getFileIcon(file);
                     const size = file.type === 1 ? formatSize(file.size) : '';
                     div.innerHTML = `
                         <div class="text-center">
-                            <div class="text-2xl sm:text-4xl mb-1 sm:mb-2">${icon}</div>
+                            <div class="text-2xl sm:text-4xl mb-1 sm:mb-2 ${iconInfo.class}">${iconInfo.emoji}</div>
                             <div class="text-xs sm:text-sm font-medium truncate" title="${file.name}">${file.name}</div>
                             ${size ? `<div class="text-xs text-gray-500">${size}</div>` : ''}
                         </div>
@@ -834,28 +1400,129 @@
                     grid.appendChild(div);
                 });
             } else { // detail view
-                grid.classList.add('hidden');
-                table.classList.remove('hidden');
-                tableBody.innerHTML = '';
-                files.forEach(file => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'file-item cursor-pointer';
-                    tr.dataset.id = file.id.toString();
-                    tr.onclick = (e) => selectFile(e, file.id, file);
-                    tr.oncontextmenu = (e) => showContextMenu(e, file);
-                    tr.ondblclick = () => openFile(file);
-                    const icon = file.type === 0 ? '📁' : '📄';
-                    tr.innerHTML = `
-                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">${icon} ${file.name}</td>
-                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden sm:table-cell">${file.type === 1 ? formatSize(file.size) : '-'}</td>
-                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden md:table-cell">${file.mime_type || '-'}</td>
-                        <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">${formatDate(file.updated_at)}</td>
-                    `;
-                    tableBody.appendChild(tr);
-                });
+                if (isMobile) {
+                    // 移动端使用卡片式布局
+                    grid.classList.add('hidden');
+                    table.classList.add('hidden');
+                    mobileList.classList.remove('hidden');
+                    mobileList.innerHTML = '';
+                    
+                    if (files.length === 0) {
+                        // 显示空状态
+                        mobileList.innerHTML = `
+                            <div class="mobile-empty-state">
+                                <div class="mobile-empty-state-icon">📂</div>
+                                <div class="mobile-empty-state-text">此文件夹为空</div>
+                                <div class="mobile-empty-state-hint">点击"新建"按钮创建文件夹或上传文件</div>
+                            </div>
+                        `;
+                    } else {
+                        files.forEach(file => {
+                            const card = document.createElement('div');
+                            card.className = 'mobile-file-card file-item';
+                            card.dataset.id = file.id.toString();
+                            card.onclick = (e) => selectFile(e, file.id, file);
+                            card.oncontextmenu = (e) => showContextMenu(e, file);
+                            card.ondblclick = () => openFile(file);
+                            
+                            const iconInfo = getFileIcon(file);
+                            const size = file.type === 1 ? formatSize(file.size) : '';
+                            const date = formatDate(file.updated_at);
+                            
+                            const metaItems = [];
+                            if (size) metaItems.push(`<span>📦 ${size}</span>`);
+                            metaItems.push(`<span>🕒 ${date}</span>`);
+                            
+                            card.innerHTML = `
+                                <div class="mobile-file-icon ${iconInfo.class}">
+                                    <div class="file-type-icon">${iconInfo.emoji}</div>
+                                </div>
+                                <div class="mobile-file-info">
+                                    <div class="mobile-file-name">${file.name}</div>
+                                    <div class="mobile-file-meta">
+                                        ${metaItems.join('')}
+                                    </div>
+                                </div>
+                            `;
+                            mobileList.appendChild(card);
+                        });
+                    }
+                } else {
+                    // 桌面端使用表格
+                    mobileList.classList.add('hidden');
+                    grid.classList.add('hidden');
+                    table.classList.remove('hidden');
+                    tableBody.innerHTML = '';
+                    files.forEach(file => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'file-item cursor-pointer';
+                        tr.dataset.id = file.id.toString();
+                        tr.onclick = (e) => selectFile(e, file.id, file);
+                        tr.oncontextmenu = (e) => showContextMenu(e, file);
+                        tr.ondblclick = () => openFile(file);
+                        const iconInfo = getFileIcon(file);
+                        tr.innerHTML = `
+                            <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">
+                                <span class="${iconInfo.class}">${iconInfo.emoji}</span> ${file.name}
+                            </td>
+                            <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden sm:table-cell">${file.type === 1 ? formatSize(file.size) : '-'}</td>
+                            <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm hidden md:table-cell">${file.mime_type || '-'}</td>
+                            <td class="border border-gray-200 px-2 sm:px-4 py-2 text-xs sm:text-sm">${formatDate(file.updated_at)}</td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+                }
             }
             updateSelection();
             updateStatus();
+        }
+
+        // 获取文件图标（根据文件类型和扩展名）
+        function getFileIcon(file) {
+            if (file.type === 0) {
+                // 文件夹
+                return { emoji: '📁', class: 'file-icon-folder' };
+            }
+            
+            // 根据文件扩展名判断类型
+            const name = file.name.toLowerCase();
+            const ext = name.split('.').pop();
+            
+            // 图片
+            if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(ext)) {
+                return { emoji: '🖼️', class: 'file-icon-image' };
+            }
+            // 视频
+            if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'm4v'].includes(ext)) {
+                return { emoji: '🎬', class: 'file-icon-video' };
+            }
+            // 音频
+            if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'].includes(ext)) {
+                return { emoji: '🎵', class: 'file-icon-audio' };
+            }
+            // PDF
+            if (ext === 'pdf') {
+                return { emoji: '📕', class: 'file-icon-pdf' };
+            }
+            // Office文档
+            if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
+                return { emoji: '📄', class: 'file-icon-document' };
+            }
+            // 压缩包
+            if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2'].includes(ext)) {
+                return { emoji: '📦', class: 'file-icon-archive' };
+            }
+            // 代码文件
+            if (['js', 'ts', 'html', 'css', 'py', 'java', 'cpp', 'c', 'go', 'rs', 'php', 'rb', 'sh', 'json', 'xml', 'yaml', 'yml'].includes(ext)) {
+                return { emoji: '💻', class: 'file-icon-code' };
+            }
+            // 文本文件
+            if (['txt', 'md', 'log', 'ini', 'conf'].includes(ext)) {
+                return { emoji: '📝', class: 'file-icon-document' };
+            }
+            
+            // 默认文件
+            return { emoji: '📄', class: 'file-icon-default' };
         }
 
         function formatSize(bytes) {
@@ -1243,7 +1910,11 @@
         function navigateToRoot() {
             isSearchMode = false;
             isTrashMode = false;
-            document.getElementById('searchInput').value = '';
+            const searchInput = document.getElementById('searchInput') || document.getElementById('searchInputMobile');
+            if (searchInput) {
+                searchInput.value = '';
+                syncSearchInputs();
+            }
             loadFiles(null);
         }
 
@@ -1333,9 +2004,44 @@
                 });
             }
             
-            menu.style.left = e.pageX + 'px';
-            menu.style.top = e.pageY + 'px';
+            // 获取点击位置（支持鼠标和触摸事件）
+            const x = e.pageX || e.clientX || 0;
+            const y = e.pageY || e.clientY || 0;
+            
+            // 先显示菜单以获取其尺寸
             menu.classList.remove('hidden');
+            const menuRect = menu.getBoundingClientRect();
+            const menuWidth = menuRect.width;
+            const menuHeight = menuRect.height;
+            
+            // 获取视口尺寸
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            // 计算菜单位置，确保不超出屏幕
+            let left = x;
+            let top = y;
+            
+            // 水平方向：如果菜单会超出右边界，则向左调整
+            if (left + menuWidth > viewportWidth) {
+                left = viewportWidth - menuWidth - 10; // 留10px边距
+            }
+            // 如果调整后超出左边界，则靠左显示
+            if (left < 10) {
+                left = 10;
+            }
+            
+            // 垂直方向：如果菜单会超出下边界，则向上调整
+            if (top + menuHeight > viewportHeight) {
+                top = viewportHeight - menuHeight - 10; // 留10px边距
+            }
+            // 如果调整后超出上边界，则靠上显示
+            if (top < 10) {
+                top = 10;
+            }
+            
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
         }
 
         function contextRestore() {
@@ -1356,9 +2062,43 @@
             if (e.target.id === 'fileList' || e.target.id === 'fileGrid' || e.target.id === 'fileTable' || e.target.id === 'fileTableBody') {
                 e.preventDefault();
                 const menu = document.getElementById('blankContextMenu');
-                menu.style.left = e.pageX + 'px';
-                menu.style.top = e.pageY + 'px';
+                
+                // 获取点击位置
+                const x = e.pageX || e.clientX || 0;
+                const y = e.pageY || e.clientY || 0;
+                
+                // 先显示菜单以获取其尺寸
                 menu.classList.remove('hidden');
+                const menuRect = menu.getBoundingClientRect();
+                const menuWidth = menuRect.width;
+                const menuHeight = menuRect.height;
+                
+                // 获取视口尺寸
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+                
+                // 计算菜单位置，确保不超出屏幕
+                let left = x;
+                let top = y;
+                
+                // 水平方向：如果菜单会超出右边界，则向左调整
+                if (left + menuWidth > viewportWidth) {
+                    left = viewportWidth - menuWidth - 10;
+                }
+                if (left < 10) {
+                    left = 10;
+                }
+                
+                // 垂直方向：如果菜单会超出下边界，则向上调整
+                if (top + menuHeight > viewportHeight) {
+                    top = viewportHeight - menuHeight - 10;
+                }
+                if (top < 10) {
+                    top = 10;
+                }
+                
+                menu.style.left = left + 'px';
+                menu.style.top = top + 'px';
             }
         }
 
@@ -1946,7 +2686,9 @@
         let searchResults = [];
 
         function searchFiles() {
-            const query = document.getElementById('searchInput').value.trim();
+            const searchInput = document.getElementById('searchInput') || document.getElementById('searchInputMobile');
+            if (!searchInput) return;
+            const query = searchInput.value.trim();
             
             // Clear previous timeout
             if (searchTimeout) {
@@ -2326,21 +3068,20 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
-            if (sidebar.classList.contains('hidden')) {
-                sidebar.classList.remove('hidden');
-                sidebar.classList.add('fixed', 'inset-y-0', 'left-0', 'z-30');
-                if (!overlay) {
-                    const newOverlay = document.createElement('div');
-                    newOverlay.id = 'sidebarOverlay';
-                    newOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden';
-                    newOverlay.onclick = toggleSidebar;
-                    document.body.appendChild(newOverlay);
-                }
-            } else {
-                sidebar.classList.add('hidden');
-                sidebar.classList.remove('fixed', 'inset-y-0', 'left-0', 'z-30');
-                if (overlay) {
-                    overlay.remove();
+            
+            // 在移动端显示/隐藏侧边栏
+            if (window.innerWidth < 768) {
+                if (sidebar.classList.contains('open')) {
+                    sidebar.classList.remove('open');
+                    if (overlay) {
+                        overlay.classList.remove('show');
+                    }
+                } else {
+                    sidebar.classList.remove('hidden');
+                    sidebar.classList.add('open');
+                    if (overlay) {
+                        overlay.classList.add('show');
+                    }
                 }
             }
         }
@@ -2395,16 +3136,199 @@
             showToast(`按${field === 'name' ? '名称' : field === 'size' ? '大小' : '日期'}${sortOrder === 'asc' ? '升序' : '降序'}排序`, 'info');
         }
 
+        // Handle window resize for responsive sidebar
+        function handleResize() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const pullToRefreshIndicator = document.getElementById('pullToRefreshIndicator');
+            
+            if (window.innerWidth >= 768) {
+                // 桌面端：显示侧边栏，移除移动端样式
+                sidebar.classList.remove('mobile-sidebar', 'open', 'hidden');
+                if (overlay) {
+                    overlay.classList.remove('show');
+                }
+                // 隐藏下拉刷新指示器
+                if (pullToRefreshIndicator) {
+                    pullToRefreshIndicator.style.display = 'none';
+                }
+            } else {
+                // 移动端：隐藏侧边栏，添加移动端样式
+                if (!sidebar.classList.contains('mobile-sidebar')) {
+                    sidebar.classList.add('mobile-sidebar');
+                }
+                sidebar.classList.remove('open');
+                if (overlay) {
+                    overlay.classList.remove('show');
+                }
+                // 显示下拉刷新指示器
+                if (pullToRefreshIndicator && window.innerWidth < 640) {
+                    pullToRefreshIndicator.style.display = 'flex';
+                }
+            }
+        }
+        
+        // 监听窗口大小改变
+        window.addEventListener('resize', handleResize);
+        
+        // 下拉刷新功能（仅移动端）
+        let pullToRefresh = {
+            startY: 0,
+            currentY: 0,
+            isPulling: false,
+            threshold: 80,
+            indicator: null
+        };
+        
+        function initPullToRefresh() {
+            const indicator = document.getElementById('pullToRefreshIndicator');
+            if (!indicator) return;
+            
+            // 桌面端隐藏指示器
+            if (window.innerWidth >= 640) {
+                indicator.style.display = 'none';
+                return;
+            }
+            
+            // 移动端显示并初始化
+            indicator.style.display = 'flex';
+            const fileList = document.getElementById('fileList');
+            if (!fileList) return;
+            
+            pullToRefresh.indicator = indicator;
+            
+            fileList.addEventListener('touchstart', (e) => {
+                if (fileList.scrollTop === 0) {
+                    pullToRefresh.startY = e.touches[0].clientY;
+                    pullToRefresh.isPulling = false;
+                }
+            }, { passive: true });
+            
+            fileList.addEventListener('touchmove', (e) => {
+                if (fileList.scrollTop === 0 && pullToRefresh.startY > 0) {
+                    pullToRefresh.currentY = e.touches[0].clientY;
+                    const pullDistance = pullToRefresh.currentY - pullToRefresh.startY;
+                    
+                    if (pullDistance > 0) {
+                        e.preventDefault();
+                        pullToRefresh.isPulling = true;
+                        
+                        if (pullDistance < pullToRefresh.threshold) {
+                            indicator.style.top = `${Math.min(pullDistance / 2, 50)}px`;
+                            indicator.classList.add('active');
+                        } else {
+                            indicator.style.top = '20px';
+                            indicator.classList.add('refreshing');
+                            indicator.querySelector('span').textContent = '释放刷新';
+                        }
+                    }
+                }
+            }, { passive: false });
+            
+            fileList.addEventListener('touchend', () => {
+                if (pullToRefresh.isPulling && pullToRefresh.currentY - pullToRefresh.startY >= pullToRefresh.threshold) {
+                    // 触发刷新
+                    indicator.querySelector('span').textContent = '刷新中...';
+                    loadFiles(currentPath);
+                    
+                    setTimeout(() => {
+                        indicator.style.top = '-50px';
+                        indicator.classList.remove('active', 'refreshing');
+                        indicator.querySelector('span').textContent = '下拉刷新';
+                    }, 1000);
+                } else {
+                    indicator.style.top = '-50px';
+                    indicator.classList.remove('active', 'refreshing');
+                }
+                
+                pullToRefresh.startY = 0;
+                pullToRefresh.currentY = 0;
+                pullToRefresh.isPulling = false;
+            }, { passive: true });
+        }
+        
+        // 长按菜单（移动端）
+        let longPressTimer = null;
+        let longPressTarget = null;
+        
+        function initLongPressMenu() {
+            if (window.innerWidth >= 640) return; // 仅移动端
+            
+            document.addEventListener('touchstart', (e) => {
+                const fileItem = e.target.closest('.file-item');
+                if (fileItem && fileItem.dataset.id) {
+                    longPressTarget = fileItem;
+                    longPressTimer = setTimeout(() => {
+                        // 触发长按
+                        const fileId = parseInt(fileItem.dataset.id);
+                        const file = allFiles.find(f => f.id === fileId);
+                        if (file) {
+                            // 选中文件
+                            selectedFiles.clear();
+                            selectedFiles.add(fileId);
+                            updateSelection();
+                            
+                            // 显示上下文菜单
+                            const rect = fileItem.getBoundingClientRect();
+                            // 使用pageX和pageY，需要加上滚动位置
+                            const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+                            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+                            showContextMenu({
+                                pageX: rect.left + rect.width / 2 + scrollX,
+                                pageY: rect.top + rect.height / 2 + scrollY,
+                                clientX: rect.left + rect.width / 2,
+                                clientY: rect.top + rect.height / 2,
+                                preventDefault: () => {}
+                            }, file);
+                        }
+                        longPressTimer = null;
+                    }, 500); // 500ms长按
+                }
+            }, { passive: true });
+            
+            document.addEventListener('touchend', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                longPressTarget = null;
+            }, { passive: true });
+            
+            document.addEventListener('touchmove', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            }, { passive: true });
+        }
+        
         // Initialize
-        setViewMode('detail'); // 默认详细信息视图
+        // 在移动端默认使用网格视图，桌面端使用详细信息视图
+        const isMobile = window.innerWidth < 640;
+        const defaultViewMode = isMobile ? 'grid' : 'detail';
+        setViewMode(defaultViewMode);
+        
         // Set initial view mode in dropdown
         const viewModeSelect = document.getElementById('viewModeSelect');
+        const viewModeSelectMobile = document.getElementById('viewModeSelectMobile');
         if (viewModeSelect) {
-            viewModeSelect.value = 'detail';
+            viewModeSelect.value = defaultViewMode;
         }
+        if (viewModeSelectMobile) {
+            viewModeSelectMobile.value = defaultViewMode;
+        }
+        
+        // 初始化侧边栏状态
+        handleResize();
+        
         // Initialize drag selection and drag & drop
         initDragSelection();
         initDragAndDrop();
+        
+        // 初始化移动端功能
+        initPullToRefresh();
+        initLongPressMenu();
+        
         // Load files and folder tree on page load (default to root)
         loadFiles(null); // null means root directory
         loadFolderTree();
