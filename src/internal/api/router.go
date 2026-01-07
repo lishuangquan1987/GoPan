@@ -32,6 +32,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	fileHandler := NewFileHandler(cfg)
 	shareHandler := NewShareHandler(cfg)
 	previewHandler := preview.NewPreviewHandler(cfg)
+	capacityHandler := NewCapacityHandler(cfg)
 
 	// Public routes
 	api := router.Group("/api")
@@ -76,6 +77,19 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				shares.POST("", shareHandler.CreateShare)
 				shares.DELETE("/:id", shareHandler.DeleteShare)
 				shares.GET("", shareHandler.GetMyShares)
+			}
+
+			// User routes (capacity management)
+			userRoutes := protected.Group("/user")
+			{
+				userRoutes.GET("/capacity", capacityHandler.GetCapacity)
+				userRoutes.POST("/recalculate", capacityHandler.RecalculateUsedCapacity)
+			}
+
+			// Admin routes (capacity management)
+			admin := protected.Group("/admin")
+			{
+				admin.PUT("/users/:id/capacity", capacityHandler.UpdateCapacity)
 			}
 
 			// Preview routes

@@ -7,6 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Heroicons for professional icons -->
     <script src="https://cdn.jsdelivr.net/npm/heroicons@2.0.18/24/outline/index.js" type="module"></script>
+    <!-- Utility Modules -->
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/capacity.js"></script>
     <style>
         /* 禁止文本选择 */
         .file-list-container,
@@ -609,6 +613,26 @@
                 </button>
             </div>
             
+            <!-- Capacity Display -->
+            <div class="flex items-center gap-2 border-l border-gray-300 pl-2 ml-2">
+                <div class="flex items-center gap-2" title="存储容量">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m8-4v8l-8 4m8-4v8m8-4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2h-2.058a2 2 0 00-1.657-1.228l-2.09-1.414a2 2 0 00-1.657-1.228l-2.09-1.414a2 2 0 00-1.657 1.228V9a2 2 0 00-2 2h16a2 2 0 002-2z"/>
+                    </svg>
+                    <div class="flex flex-col">
+                        <span class="text-xs text-gray-500">
+                            <span id="capacityUsed">0 B</span> / <span id="capacityTotal">0 B</span>
+                        </span>
+                        <div class="flex items-center gap-1">
+                            <div class="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div id="capacityProgressBar" class="h-full bg-green-500 transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                            <span id="capacityPercentage" class="text-xs text-gray-600">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- View Mode Dropdown -->
             <div class="flex items-center gap-1 border-l border-gray-300 pl-2 ml-2">
                 <select id="viewModeSelect" onchange="setViewMode(this.value)" class="px-3 py-2 border border-gray-300 rounded bg-white text-sm">
@@ -1625,13 +1649,14 @@
 
         async function restoreFile(fileId) {
             try {
-                await apiCall('/files/restore', {
-                    method: 'POST',
-                    body: JSON.stringify({ id: fileId.toString() })
+                await window.APIUtils.post('/files/restore', {
+                    body: { id: fileId.toString() }
                 });
                 showToast('恢复成功', 'success');
                 closeDialog();
                 navigateToTrash(); // Refresh trash
+                // 刷新容量显示
+                window.CapacityUtils.initCapacityDisplay();
             } catch (error) {
                 showToast('恢复失败', 'error');
             }
@@ -1640,10 +1665,12 @@
         async function permanentlyDeleteFile(fileId) {
             showConfirm('确认永久删除', '此操作不可恢复，确定要永久删除吗？', async () => {
                 try {
-                    await apiCall(`/files/trash/${fileId}`, { method: 'DELETE' });
+                    await window.APIUtils.del(`/files/trash/${fileId}`);
                     showToast('永久删除成功', 'success');
                     closeDialog();
                     navigateToTrash(); // Refresh trash
+                    // 刷新容量显示
+                    window.CapacityUtils.initCapacityDisplay();
                 } catch (error) {
                     showToast('删除失败', 'error');
                 }
@@ -2565,6 +2592,29 @@
             }
 
             const { file } = item;
+
+            // 检查容量
+            const hasCapacity = await window.CapacityUtils.checkCapacityBeforeUpload(file.size);
+            if (!hasCapacity) {
+                // 标记为失败,继续处理下一个文件
+                item.status = 'failed';
+                const progressDiv = document.getElementById('uploadProgress');
+                const progressItem = document.createElement('div');
+                progressItem.id = `upload_${file.name}`;
+                progressItem.className = 'border border-gray-200 rounded p-3';
+                progressItem.innerHTML = `
+                    <div class="text-sm font-medium mb-1">${file.name}</div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-red-600 h-2 rounded-full" style="width: 100%"></div>
+                    </div>
+                    <div class="text-xs text-red-600 mt-1">存储空间不足</div>
+                `;
+                progressDiv.appendChild(progressItem);
+
+                // 继续处理下一个文件
+                processUploadQueue();
+                return;
+            }
             const progressDiv = document.getElementById('uploadProgress');
             
             // Create progress item if not exists
@@ -2613,6 +2663,10 @@
                         statusText.classList.remove('text-gray-500');
                         statusText.classList.add('text-green-600');
                         showToast(`${file.name} 上传成功`, 'success');
+
+                        // 刷新容量显示
+                        window.CapacityUtils.initCapacityDisplay();
+
                         // Immediately refresh file list after successful upload
                         if (!isSearchMode && !isTrashMode) {
                             setTimeout(() => {
@@ -3307,7 +3361,7 @@
         const isMobile = window.innerWidth < 640;
         const defaultViewMode = isMobile ? 'grid' : 'detail';
         setViewMode(defaultViewMode);
-        
+
         // Set initial view mode in dropdown
         const viewModeSelect = document.getElementById('viewModeSelect');
         const viewModeSelectMobile = document.getElementById('viewModeSelectMobile');
@@ -3317,7 +3371,10 @@
         if (viewModeSelectMobile) {
             viewModeSelectMobile.value = defaultViewMode;
         }
-        
+
+        // 初始化容量显示
+        window.CapacityUtils.initCapacityDisplay();
+
         // 初始化侧边栏状态
         handleResize();
         

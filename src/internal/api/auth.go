@@ -64,11 +64,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Create user
+	// Create user with default 10GB capacity
 	user, err := database.Client.User.Create().
 		SetUsername(req.Username).
 		SetPasswordHash(hashedPassword).
 		SetNillableEmail(&req.Email).
+		SetTotalQuota(10737418240). // 10GB = 10 * 1024 * 1024 * 1024
 		Save(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})

@@ -48,6 +48,25 @@ func (h *FileHandler) GetFiles(c *gin.Context) {
 		return
 	}
 
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
+		return
+	}
+
 	// Build query
 	query := queryNodesByOwner(database.Client, uid).
 		Where(node.IsDeletedEQ(false))
@@ -150,6 +169,25 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 		return
 	}
 
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
+		return
+	}
+
 	// Open uploaded file
 	src, err := file.Open()
 	if err != nil {
@@ -174,13 +212,15 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 
 	// Check if file already exists (quick upload)
 	var minioObject string
+	var isNewFile bool = true // Track if this is a new file (not instant upload)
 	if fileHash != "" {
 		fileHashRecord, err := database.Client.FileHash.Query().
 			Where(filehash.HashEQ(fileHash)).
 			Only(ctx)
 		if err == nil {
-			// File exists, use existing MinIO object
+			// File exists, use existing MinIO object (instant upload)
 			minioObject = fileHashRecord.MinioObject
+			isNewFile = false
 			// Update reference count
 			fileHashRecord.Update().AddReferenceCount(1).Save(ctx)
 		}
@@ -250,6 +290,17 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 		return
 	}
 
+	// Update user's used storage (only for new files, not instant uploads)
+	if isNewFile {
+		_, err = database.Client.User.UpdateOneID(uid).
+			AddTotalUsed(file.Size).
+			Save(ctx)
+		if err != nil {
+			// Log error but don't fail the upload
+			_ = err
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"id":         node.ID,
 		"name":       node.Name,
@@ -279,6 +330,25 @@ func (h *FileHandler) CreateFolder(c *gin.Context) {
 	uid, err := parseUserID(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
 		return
 	}
 
@@ -344,6 +414,25 @@ func (h *FileHandler) GetFileTree(c *gin.Context) {
 	uid, err := parseUserID(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
 		return
 	}
 
@@ -623,6 +712,25 @@ func (h *FileHandler) MoveFiles(c *gin.Context) {
 		return
 	}
 
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
+		return
+	}
+
 	// Parse parent ID
 	var parentIDInt *int
 	if req.ParentID != "" && req.ParentID != "root" {
@@ -688,6 +796,25 @@ func (h *FileHandler) CopyFiles(c *gin.Context) {
 	uid, err := parseUserID(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
 		return
 	}
 
@@ -866,6 +993,25 @@ func (h *FileHandler) QuickUpload(c *gin.Context) {
 		return
 	}
 
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
+		return
+	}
+
 	// Check if file hash exists
 	fileHashRecord, err := database.Client.FileHash.Query().
 		Where(filehash.HashEQ(req.Hash)).
@@ -938,6 +1084,25 @@ func (h *FileHandler) SearchFiles(c *gin.Context) {
 		return
 	}
 
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
+		return
+	}
+
 	// Build query
 	dbQuery := queryNodesByOwner(database.Client, uid).
 		Where(node.IsDeletedEQ(false))
@@ -992,6 +1157,25 @@ func (h *FileHandler) GetTrash(c *gin.Context) {
 	uid, err := parseUserID(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check if user has enough capacity (only for non-instant upload)
+	// For instant upload, we'll check after determining if it's a new file
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Insufficient storage capacity",
+			"used":  user.TotalUsed,
+			"max":   user.TotalQuota,
+			"needed": file.Size,
+		})
 		return
 	}
 
@@ -1069,6 +1253,17 @@ func (h *FileHandler) RestoreFile(c *gin.Context) {
 		return
 	}
 
+	// Add back to user's used storage (if it's a file)
+	if n.Type == 1 {
+		_, err = database.Client.User.UpdateOneID(uid).
+			AddTotalUsed(n.Size).
+			Save(ctx)
+		if err != nil {
+			// Log error but don't fail the restore
+			_ = err
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "File restored"})
 }
 
@@ -1116,6 +1311,15 @@ func (h *FileHandler) PermanentlyDelete(c *gin.Context) {
 				storage.GetClient().RemoveObject(ctx, h.cfg.MinIO.BucketName, fileHashRecord.MinioObject, minio.RemoveObjectOptions{})
 				// Delete hash record
 				database.Client.FileHash.DeleteOne(fileHashRecord).Exec(ctx)
+
+				// Deduct from user's used storage (only when file is completely removed)
+				_, err = database.Client.User.UpdateOneID(uid).
+					AddTotalUsed(-n.Size).
+					Save(ctx)
+				if err != nil {
+					// Log error but don't fail the delete
+					_ = err
+				}
 			} else {
 				fileHashRecord.Update().SetReferenceCount(newCount).Save(ctx)
 			}
