@@ -4,6 +4,7 @@ import (
 	"context"
 	"gopan-server/config"
 	"gopan-server/ent"
+	"gopan-server/ent/node"
 	"gopan-server/ent/user"
 	"gopan-server/internal/database"
 	"net/http"
