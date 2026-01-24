@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GoPan - 我的网盘</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Heroicons for professional icons -->
-    <script src="https://cdn.jsdelivr.net/npm/heroicons@2.0.18/24/outline/index.js" type="module"></script>
     <!-- Utility Modules -->
     <script src="js/utils.js"></script>
     <script src="js/api.js"></script>
@@ -531,20 +529,13 @@
                 top: -50px;
                 left: 50%;
                 transform: translateX(-50%);
-                display: none; /* 默认隐藏 */
+                display: flex; /* 默认显示，由JavaScript控制位置 */
                 align-items: center;
                 gap: 8px;
                 color: #6b7280;
                 font-size: 14px;
                 transition: top 0.3s ease;
                 z-index: 10;
-            }
-            
-            /* 仅在移动端显示下拉刷新指示器 */
-            @media (max-width: 640px) {
-                .pull-to-refresh-indicator {
-                    display: flex;
-                }
             }
             
             .pull-to-refresh-indicator.active {
@@ -757,14 +748,8 @@
             </div>
 
             <!-- File List -->
-            <div class="flex-1 overflow-y-auto p-2 sm:p-4 file-list-container pull-to-refresh" id="fileList" oncontextmenu="showBlankContextMenu(event)">
-                <!-- 下拉刷新指示器 -->
-                <div id="pullToRefreshIndicator" class="pull-to-refresh-indicator">
-                    <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    <span>下拉刷新</span>
-                </div>
+            <div class="flex-1 overflow-y-auto p-2 sm:p-4 file-list-container pull-to-refresh" id="fileList">
+                <!-- 下拉刷新指示器将通过JavaScript动态创建（仅移动端） -->
                 <div id="selectionBox" class="selection-box hidden"></div>
                 <!-- 移动端卡片列表 -->
                 <div id="mobileFileList" class="mobile-file-list hidden sm:hidden"></div>
@@ -928,7 +913,18 @@
     </div>
 
     <script>
-        const API_BASE = window.location.origin + '/api';
+        // 导航到根目录函数
+        function navigateToRoot() {
+            isSearchMode = false;
+            isTrashMode = false;
+            const searchInput = document.getElementById('searchInput') || document.getElementById('searchInputMobile');
+            if (searchInput) {
+                searchInput.value = '';
+                syncSearchInputs();
+            }
+            loadFiles(null);
+        }
+        
         let token = localStorage.getItem('token');
         let currentPath = null;
         let selectedFiles = new Set();
@@ -1932,17 +1928,6 @@
             } catch (error) {
                 breadcrumb.innerHTML = '<button onclick="navigateToRoot()" class="hover:underline">根目录</button>';
             }
-        }
-
-        function navigateToRoot() {
-            isSearchMode = false;
-            isTrashMode = false;
-            const searchInput = document.getElementById('searchInput') || document.getElementById('searchInputMobile');
-            if (searchInput) {
-                searchInput.value = '';
-                syncSearchInputs();
-            }
-            loadFiles(null);
         }
 
         let isTrashMode = false;
@@ -3202,9 +3187,9 @@
                 if (overlay) {
                     overlay.classList.remove('show');
                 }
-                // 隐藏下拉刷新指示器
+                // 在桌面端移除下拉刷新指示器（如果存在）
                 if (pullToRefreshIndicator) {
-                    pullToRefreshIndicator.style.display = 'none';
+                    pullToRefreshIndicator.remove();
                 }
             } else {
                 // 移动端：隐藏侧边栏，添加移动端样式
@@ -3215,9 +3200,14 @@
                 if (overlay) {
                     overlay.classList.remove('show');
                 }
-                // 显示下拉刷新指示器
+                // 在移动端显示下拉刷新指示器（如果存在）
                 if (pullToRefreshIndicator && window.innerWidth < 640) {
-                    pullToRefreshIndicator.style.display = 'flex';
+                    // 不需要设置display，因为CSS已经设置为flex
+                    console.log('窗口大小变化：移动端，下拉刷新指示器已存在');
+                } else if (!pullToRefreshIndicator && window.innerWidth < 640) {
+                    // 如果下拉刷新指示器不存在，则重新初始化
+                    console.log('窗口大小变化：移动端，重新创建下拉刷新指示器');
+                    initPullToRefresh();
                 }
             }
         }
@@ -3235,26 +3225,47 @@
         };
         
         function initPullToRefresh() {
-            const indicator = document.getElementById('pullToRefreshIndicator');
-            if (!indicator) return;
-            
-            // 桌面端隐藏指示器
+            // 桌面端不初始化下拉刷新功能
             if (window.innerWidth >= 640) {
-                indicator.style.display = 'none';
+                console.log('桌面端：不初始化下拉刷新功能');
                 return;
             }
             
-            // 移动端显示并初始化
-            indicator.style.display = 'flex';
-            const fileList = document.getElementById('fileList');
-            if (!fileList) return;
+            console.log('移动端：开始初始化下拉刷新功能');
             
+            // 动态创建下拉刷新指示器（仅移动端）
+            const fileList = document.getElementById('fileList');
+            if (!fileList) {
+                console.log('错误：找不到文件列表元素');
+                return;
+            }
+            
+            // 创建下拉刷新指示器元素
+            const indicator = document.createElement('div');
+            indicator.id = 'pullToRefreshIndicator';
+            indicator.className = 'pull-to-refresh-indicator';
+            indicator.innerHTML = `
+                <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span>下拉刷新</span>
+            `;
+            
+            // 将指示器添加到文件列表的开头
+            fileList.insertBefore(indicator, fileList.firstChild);
+            
+            // 移动端显示并初始化
+            indicator.style.top = '-50px'; // 确保初始位置在屏幕外
             pullToRefresh.indicator = indicator;
             
+            console.log('移动端：下拉刷新指示器已创建并初始化');
+            
             fileList.addEventListener('touchstart', (e) => {
+                console.log('触摸开始事件触发');
                 if (fileList.scrollTop === 0) {
                     pullToRefresh.startY = e.touches[0].clientY;
                     pullToRefresh.isPulling = false;
+                    console.log('触摸开始：记录起始位置', pullToRefresh.startY);
                 }
             }, { passive: true });
             
@@ -3382,9 +3393,20 @@
         initDragSelection();
         initDragAndDrop();
         
-        // 初始化移动端功能
-        initPullToRefresh();
-        initLongPressMenu();
+        // 仅在移动端初始化下拉刷新功能
+        if (isMobile) {
+            console.log('移动端设备：初始化下拉刷新功能');
+            initPullToRefresh();
+            initLongPressMenu();
+        } else {
+            console.log('桌面端设备：不初始化下拉刷新功能');
+        }
+        
+        // 添加文件列表的右键菜单事件
+        const fileList = document.getElementById('fileList');
+        if (fileList) {
+            fileList.addEventListener('contextmenu', showBlankContextMenu);
+        }
         
         // Load files and folder tree on page load (default to root)
         loadFiles(null); // null means root directory

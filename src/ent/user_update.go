@@ -78,6 +78,48 @@ func (uu *UserUpdate) ClearEmail() *UserUpdate {
 	return uu
 }
 
+// SetTotalQuota sets the "total_quota" field.
+func (uu *UserUpdate) SetTotalQuota(i int64) *UserUpdate {
+	uu.mutation.ResetTotalQuota()
+	uu.mutation.SetTotalQuota(i)
+	return uu
+}
+
+// SetNillableTotalQuota sets the "total_quota" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableTotalQuota(i *int64) *UserUpdate {
+	if i != nil {
+		uu.SetTotalQuota(*i)
+	}
+	return uu
+}
+
+// AddTotalQuota adds i to the "total_quota" field.
+func (uu *UserUpdate) AddTotalQuota(i int64) *UserUpdate {
+	uu.mutation.AddTotalQuota(i)
+	return uu
+}
+
+// SetTotalUsed sets the "total_used" field.
+func (uu *UserUpdate) SetTotalUsed(i int64) *UserUpdate {
+	uu.mutation.ResetTotalUsed()
+	uu.mutation.SetTotalUsed(i)
+	return uu
+}
+
+// SetNillableTotalUsed sets the "total_used" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableTotalUsed(i *int64) *UserUpdate {
+	if i != nil {
+		uu.SetTotalUsed(*i)
+	}
+	return uu
+}
+
+// AddTotalUsed adds i to the "total_used" field.
+func (uu *UserUpdate) AddTotalUsed(i int64) *UserUpdate {
+	uu.mutation.AddTotalUsed(i)
+	return uu
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (uu *UserUpdate) SetCreatedAt(t time.Time) *UserUpdate {
 	uu.mutation.SetCreatedAt(t)
@@ -270,6 +312,18 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if uu.mutation.EmailCleared() {
 		_spec.ClearField(user.FieldEmail, field.TypeString)
 	}
+	if value, ok := uu.mutation.TotalQuota(); ok {
+		_spec.SetField(user.FieldTotalQuota, field.TypeInt64, value)
+	}
+	if value, ok := uu.mutation.AddedTotalQuota(); ok {
+		_spec.AddField(user.FieldTotalQuota, field.TypeInt64, value)
+	}
+	if value, ok := uu.mutation.TotalUsed(); ok {
+		_spec.SetField(user.FieldTotalUsed, field.TypeInt64, value)
+	}
+	if value, ok := uu.mutation.AddedTotalUsed(); ok {
+		_spec.AddField(user.FieldTotalUsed, field.TypeInt64, value)
+	}
 	if value, ok := uu.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)
 	}
@@ -437,6 +491,48 @@ func (uuo *UserUpdateOne) SetNillableEmail(s *string) *UserUpdateOne {
 // ClearEmail clears the value of the "email" field.
 func (uuo *UserUpdateOne) ClearEmail() *UserUpdateOne {
 	uuo.mutation.ClearEmail()
+	return uuo
+}
+
+// SetTotalQuota sets the "total_quota" field.
+func (uuo *UserUpdateOne) SetTotalQuota(i int64) *UserUpdateOne {
+	uuo.mutation.ResetTotalQuota()
+	uuo.mutation.SetTotalQuota(i)
+	return uuo
+}
+
+// SetNillableTotalQuota sets the "total_quota" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableTotalQuota(i *int64) *UserUpdateOne {
+	if i != nil {
+		uuo.SetTotalQuota(*i)
+	}
+	return uuo
+}
+
+// AddTotalQuota adds i to the "total_quota" field.
+func (uuo *UserUpdateOne) AddTotalQuota(i int64) *UserUpdateOne {
+	uuo.mutation.AddTotalQuota(i)
+	return uuo
+}
+
+// SetTotalUsed sets the "total_used" field.
+func (uuo *UserUpdateOne) SetTotalUsed(i int64) *UserUpdateOne {
+	uuo.mutation.ResetTotalUsed()
+	uuo.mutation.SetTotalUsed(i)
+	return uuo
+}
+
+// SetNillableTotalUsed sets the "total_used" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableTotalUsed(i *int64) *UserUpdateOne {
+	if i != nil {
+		uuo.SetTotalUsed(*i)
+	}
+	return uuo
+}
+
+// AddTotalUsed adds i to the "total_used" field.
+func (uuo *UserUpdateOne) AddTotalUsed(i int64) *UserUpdateOne {
+	uuo.mutation.AddTotalUsed(i)
 	return uuo
 }
 
@@ -661,6 +757,18 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 	}
 	if uuo.mutation.EmailCleared() {
 		_spec.ClearField(user.FieldEmail, field.TypeString)
+	}
+	if value, ok := uuo.mutation.TotalQuota(); ok {
+		_spec.SetField(user.FieldTotalQuota, field.TypeInt64, value)
+	}
+	if value, ok := uuo.mutation.AddedTotalQuota(); ok {
+		_spec.AddField(user.FieldTotalQuota, field.TypeInt64, value)
+	}
+	if value, ok := uuo.mutation.TotalUsed(); ok {
+		_spec.SetField(user.FieldTotalUsed, field.TypeInt64, value)
+	}
+	if value, ok := uuo.mutation.AddedTotalUsed(); ok {
+		_spec.AddField(user.FieldTotalUsed, field.TypeInt64, value)
 	}
 	if value, ok := uuo.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)

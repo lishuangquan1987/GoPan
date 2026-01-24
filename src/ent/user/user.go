@@ -20,6 +20,10 @@ const (
 	FieldPasswordHash = "password_hash"
 	// FieldEmail holds the string denoting the email field in the database.
 	FieldEmail = "email"
+	// FieldTotalQuota holds the string denoting the total_quota field in the database.
+	FieldTotalQuota = "total_quota"
+	// FieldTotalUsed holds the string denoting the total_used field in the database.
+	FieldTotalUsed = "total_used"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -54,6 +58,8 @@ var Columns = []string{
 	FieldUsername,
 	FieldPasswordHash,
 	FieldEmail,
+	FieldTotalQuota,
+	FieldTotalUsed,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 	FieldLastLoginAt,
@@ -74,6 +80,10 @@ var (
 	UsernameValidator func(string) error
 	// PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
 	PasswordHashValidator func(string) error
+	// DefaultTotalQuota holds the default value on creation for the "total_quota" field.
+	DefaultTotalQuota int64
+	// DefaultTotalUsed holds the default value on creation for the "total_used" field.
+	DefaultTotalUsed int64
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -103,6 +113,16 @@ func ByPasswordHash(opts ...sql.OrderTermOption) OrderOption {
 // ByEmail orders the results by the email field.
 func ByEmail(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEmail, opts...).ToFunc()
+}
+
+// ByTotalQuota orders the results by the total_quota field.
+func ByTotalQuota(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTotalQuota, opts...).ToFunc()
+}
+
+// ByTotalUsed orders the results by the total_used field.
+func ByTotalUsed(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTotalUsed, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

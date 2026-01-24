@@ -101,6 +101,8 @@ var (
 		{Name: "username", Type: field.TypeString, Unique: true},
 		{Name: "password_hash", Type: field.TypeString},
 		{Name: "email", Type: field.TypeString, Nullable: true},
+		{Name: "total_quota", Type: field.TypeInt64, Default: 10737418240},
+		{Name: "total_used", Type: field.TypeInt64, Default: 0},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "last_login_at", Type: field.TypeTime, Nullable: true},

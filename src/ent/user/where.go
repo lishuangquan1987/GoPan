@@ -70,6 +70,16 @@ func Email(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldEmail, v))
 }
 
+// TotalQuota applies equality check predicate on the "total_quota" field. It's identical to TotalQuotaEQ.
+func TotalQuota(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTotalQuota, v))
+}
+
+// TotalUsed applies equality check predicate on the "total_used" field. It's identical to TotalUsedEQ.
+func TotalUsed(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTotalUsed, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -288,6 +298,86 @@ func EmailEqualFold(v string) predicate.User {
 // EmailContainsFold applies the ContainsFold predicate on the "email" field.
 func EmailContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldEmail, v))
+}
+
+// TotalQuotaEQ applies the EQ predicate on the "total_quota" field.
+func TotalQuotaEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTotalQuota, v))
+}
+
+// TotalQuotaNEQ applies the NEQ predicate on the "total_quota" field.
+func TotalQuotaNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTotalQuota, v))
+}
+
+// TotalQuotaIn applies the In predicate on the "total_quota" field.
+func TotalQuotaIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldTotalQuota, vs...))
+}
+
+// TotalQuotaNotIn applies the NotIn predicate on the "total_quota" field.
+func TotalQuotaNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldTotalQuota, vs...))
+}
+
+// TotalQuotaGT applies the GT predicate on the "total_quota" field.
+func TotalQuotaGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldTotalQuota, v))
+}
+
+// TotalQuotaGTE applies the GTE predicate on the "total_quota" field.
+func TotalQuotaGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldTotalQuota, v))
+}
+
+// TotalQuotaLT applies the LT predicate on the "total_quota" field.
+func TotalQuotaLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldTotalQuota, v))
+}
+
+// TotalQuotaLTE applies the LTE predicate on the "total_quota" field.
+func TotalQuotaLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldTotalQuota, v))
+}
+
+// TotalUsedEQ applies the EQ predicate on the "total_used" field.
+func TotalUsedEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldTotalUsed, v))
+}
+
+// TotalUsedNEQ applies the NEQ predicate on the "total_used" field.
+func TotalUsedNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldTotalUsed, v))
+}
+
+// TotalUsedIn applies the In predicate on the "total_used" field.
+func TotalUsedIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldTotalUsed, vs...))
+}
+
+// TotalUsedNotIn applies the NotIn predicate on the "total_used" field.
+func TotalUsedNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldTotalUsed, vs...))
+}
+
+// TotalUsedGT applies the GT predicate on the "total_used" field.
+func TotalUsedGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldTotalUsed, v))
+}
+
+// TotalUsedGTE applies the GTE predicate on the "total_used" field.
+func TotalUsedGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldTotalUsed, v))
+}
+
+// TotalUsedLT applies the LT predicate on the "total_used" field.
+func TotalUsedLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldTotalUsed, v))
+}
+
+// TotalUsedLTE applies the LTE predicate on the "total_used" field.
+func TotalUsedLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldTotalUsed, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

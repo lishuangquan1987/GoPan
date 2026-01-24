@@ -23,6 +23,10 @@ type User struct {
 	PasswordHash string `json:"password_hash,omitempty"`
 	// Email holds the value of the "email" field.
 	Email string `json:"email,omitempty"`
+	// Total storage quota in bytes, default 10GB
+	TotalQuota int64 `json:"total_quota,omitempty"`
+	// Total used storage in bytes
+	TotalUsed int64 `json:"total_used,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -69,7 +73,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldID:
+		case user.FieldID, user.FieldTotalQuota, user.FieldTotalUsed:
 			values[i] = new(sql.NullInt64)
 		case user.FieldUsername, user.FieldPasswordHash, user.FieldEmail:
 			values[i] = new(sql.NullString)
@@ -113,6 +117,18 @@ func (u *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field email", values[i])
 			} else if value.Valid {
 				u.Email = value.String
+			}
+		case user.FieldTotalQuota:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field total_quota", values[i])
+			} else if value.Valid {
+				u.TotalQuota = value.Int64
+			}
+		case user.FieldTotalUsed:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field total_used", values[i])
+			} else if value.Valid {
+				u.TotalUsed = value.Int64
 			}
 		case user.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -186,6 +202,12 @@ func (u *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("email=")
 	builder.WriteString(u.Email)
+	builder.WriteString(", ")
+	builder.WriteString("total_quota=")
+	builder.WriteString(fmt.Sprintf("%v", u.TotalQuota))
+	builder.WriteString(", ")
+	builder.WriteString("total_used=")
+	builder.WriteString(fmt.Sprintf("%v", u.TotalUsed))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(u.CreatedAt.Format(time.ANSIC))

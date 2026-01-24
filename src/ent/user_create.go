@@ -48,6 +48,34 @@ func (uc *UserCreate) SetNillableEmail(s *string) *UserCreate {
 	return uc
 }
 
+// SetTotalQuota sets the "total_quota" field.
+func (uc *UserCreate) SetTotalQuota(i int64) *UserCreate {
+	uc.mutation.SetTotalQuota(i)
+	return uc
+}
+
+// SetNillableTotalQuota sets the "total_quota" field if the given value is not nil.
+func (uc *UserCreate) SetNillableTotalQuota(i *int64) *UserCreate {
+	if i != nil {
+		uc.SetTotalQuota(*i)
+	}
+	return uc
+}
+
+// SetTotalUsed sets the "total_used" field.
+func (uc *UserCreate) SetTotalUsed(i int64) *UserCreate {
+	uc.mutation.SetTotalUsed(i)
+	return uc
+}
+
+// SetNillableTotalUsed sets the "total_used" field if the given value is not nil.
+func (uc *UserCreate) SetNillableTotalUsed(i *int64) *UserCreate {
+	if i != nil {
+		uc.SetTotalUsed(*i)
+	}
+	return uc
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (uc *UserCreate) SetCreatedAt(t time.Time) *UserCreate {
 	uc.mutation.SetCreatedAt(t)
@@ -155,6 +183,14 @@ func (uc *UserCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (uc *UserCreate) defaults() {
+	if _, ok := uc.mutation.TotalQuota(); !ok {
+		v := user.DefaultTotalQuota
+		uc.mutation.SetTotalQuota(v)
+	}
+	if _, ok := uc.mutation.TotalUsed(); !ok {
+		v := user.DefaultTotalUsed
+		uc.mutation.SetTotalUsed(v)
+	}
 	if _, ok := uc.mutation.CreatedAt(); !ok {
 		v := user.DefaultCreatedAt()
 		uc.mutation.SetCreatedAt(v)
@@ -182,6 +218,12 @@ func (uc *UserCreate) check() error {
 		if err := user.PasswordHashValidator(v); err != nil {
 			return &ValidationError{Name: "password_hash", err: fmt.Errorf(`ent: validator failed for field "User.password_hash": %w`, err)}
 		}
+	}
+	if _, ok := uc.mutation.TotalQuota(); !ok {
+		return &ValidationError{Name: "total_quota", err: errors.New(`ent: missing required field "User.total_quota"`)}
+	}
+	if _, ok := uc.mutation.TotalUsed(); !ok {
+		return &ValidationError{Name: "total_used", err: errors.New(`ent: missing required field "User.total_used"`)}
 	}
 	if _, ok := uc.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "User.created_at"`)}
@@ -226,6 +268,14 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := uc.mutation.Email(); ok {
 		_spec.SetField(user.FieldEmail, field.TypeString, value)
 		_node.Email = value
+	}
+	if value, ok := uc.mutation.TotalQuota(); ok {
+		_spec.SetField(user.FieldTotalQuota, field.TypeInt64, value)
+		_node.TotalQuota = value
+	}
+	if value, ok := uc.mutation.TotalUsed(); ok {
+		_spec.SetField(user.FieldTotalUsed, field.TypeInt64, value)
+		_node.TotalUsed = value
 	}
 	if value, ok := uc.mutation.CreatedAt(); ok {
 		_spec.SetField(user.FieldCreatedAt, field.TypeTime, value)

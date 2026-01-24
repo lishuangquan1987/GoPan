@@ -3024,25 +3024,29 @@ func (m *ShareMutation) ResetEdge(name string) error {
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	username      *string
-	password_hash *string
-	email         *string
-	created_at    *time.Time
-	updated_at    *time.Time
-	last_login_at *time.Time
-	clearedFields map[string]struct{}
-	nodes         map[int]struct{}
-	removednodes  map[int]struct{}
-	clearednodes  bool
-	shares        map[int]struct{}
-	removedshares map[int]struct{}
-	clearedshares bool
-	done          bool
-	oldValue      func(context.Context) (*User, error)
-	predicates    []predicate.User
+	op             Op
+	typ            string
+	id             *int
+	username       *string
+	password_hash  *string
+	email          *string
+	total_quota    *int64
+	addtotal_quota *int64
+	total_used     *int64
+	addtotal_used  *int64
+	created_at     *time.Time
+	updated_at     *time.Time
+	last_login_at  *time.Time
+	clearedFields  map[string]struct{}
+	nodes          map[int]struct{}
+	removednodes   map[int]struct{}
+	clearednodes   bool
+	shares         map[int]struct{}
+	removedshares  map[int]struct{}
+	clearedshares  bool
+	done           bool
+	oldValue       func(context.Context) (*User, error)
+	predicates     []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -3262,6 +3266,118 @@ func (m *UserMutation) EmailCleared() bool {
 func (m *UserMutation) ResetEmail() {
 	m.email = nil
 	delete(m.clearedFields, user.FieldEmail)
+}
+
+// SetTotalQuota sets the "total_quota" field.
+func (m *UserMutation) SetTotalQuota(i int64) {
+	m.total_quota = &i
+	m.addtotal_quota = nil
+}
+
+// TotalQuota returns the value of the "total_quota" field in the mutation.
+func (m *UserMutation) TotalQuota() (r int64, exists bool) {
+	v := m.total_quota
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTotalQuota returns the old "total_quota" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTotalQuota(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTotalQuota is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTotalQuota requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTotalQuota: %w", err)
+	}
+	return oldValue.TotalQuota, nil
+}
+
+// AddTotalQuota adds i to the "total_quota" field.
+func (m *UserMutation) AddTotalQuota(i int64) {
+	if m.addtotal_quota != nil {
+		*m.addtotal_quota += i
+	} else {
+		m.addtotal_quota = &i
+	}
+}
+
+// AddedTotalQuota returns the value that was added to the "total_quota" field in this mutation.
+func (m *UserMutation) AddedTotalQuota() (r int64, exists bool) {
+	v := m.addtotal_quota
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTotalQuota resets all changes to the "total_quota" field.
+func (m *UserMutation) ResetTotalQuota() {
+	m.total_quota = nil
+	m.addtotal_quota = nil
+}
+
+// SetTotalUsed sets the "total_used" field.
+func (m *UserMutation) SetTotalUsed(i int64) {
+	m.total_used = &i
+	m.addtotal_used = nil
+}
+
+// TotalUsed returns the value of the "total_used" field in the mutation.
+func (m *UserMutation) TotalUsed() (r int64, exists bool) {
+	v := m.total_used
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTotalUsed returns the old "total_used" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldTotalUsed(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTotalUsed is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTotalUsed requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTotalUsed: %w", err)
+	}
+	return oldValue.TotalUsed, nil
+}
+
+// AddTotalUsed adds i to the "total_used" field.
+func (m *UserMutation) AddTotalUsed(i int64) {
+	if m.addtotal_used != nil {
+		*m.addtotal_used += i
+	} else {
+		m.addtotal_used = &i
+	}
+}
+
+// AddedTotalUsed returns the value that was added to the "total_used" field in this mutation.
+func (m *UserMutation) AddedTotalUsed() (r int64, exists bool) {
+	v := m.addtotal_used
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTotalUsed resets all changes to the "total_used" field.
+func (m *UserMutation) ResetTotalUsed() {
+	m.total_used = nil
+	m.addtotal_used = nil
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -3527,7 +3643,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 8)
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
 	}
@@ -3536,6 +3652,12 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.email != nil {
 		fields = append(fields, user.FieldEmail)
+	}
+	if m.total_quota != nil {
+		fields = append(fields, user.FieldTotalQuota)
+	}
+	if m.total_used != nil {
+		fields = append(fields, user.FieldTotalUsed)
 	}
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
@@ -3560,6 +3682,10 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.PasswordHash()
 	case user.FieldEmail:
 		return m.Email()
+	case user.FieldTotalQuota:
+		return m.TotalQuota()
+	case user.FieldTotalUsed:
+		return m.TotalUsed()
 	case user.FieldCreatedAt:
 		return m.CreatedAt()
 	case user.FieldUpdatedAt:
@@ -3581,6 +3707,10 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldPasswordHash(ctx)
 	case user.FieldEmail:
 		return m.OldEmail(ctx)
+	case user.FieldTotalQuota:
+		return m.OldTotalQuota(ctx)
+	case user.FieldTotalUsed:
+		return m.OldTotalUsed(ctx)
 	case user.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case user.FieldUpdatedAt:
@@ -3617,6 +3747,20 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetEmail(v)
 		return nil
+	case user.FieldTotalQuota:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTotalQuota(v)
+		return nil
+	case user.FieldTotalUsed:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTotalUsed(v)
+		return nil
 	case user.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -3645,13 +3789,26 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *UserMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addtotal_quota != nil {
+		fields = append(fields, user.FieldTotalQuota)
+	}
+	if m.addtotal_used != nil {
+		fields = append(fields, user.FieldTotalUsed)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case user.FieldTotalQuota:
+		return m.AddedTotalQuota()
+	case user.FieldTotalUsed:
+		return m.AddedTotalUsed()
+	}
 	return nil, false
 }
 
@@ -3660,6 +3817,20 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *UserMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case user.FieldTotalQuota:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTotalQuota(v)
+		return nil
+	case user.FieldTotalUsed:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTotalUsed(v)
+		return nil
 	}
 	return fmt.Errorf("unknown User numeric field %s", name)
 }
@@ -3710,6 +3881,12 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldEmail:
 		m.ResetEmail()
+		return nil
+	case user.FieldTotalQuota:
+		m.ResetTotalQuota()
+		return nil
+	case user.FieldTotalUsed:
+		m.ResetTotalUsed()
 		return nil
 	case user.FieldCreatedAt:
 		m.ResetCreatedAt()
