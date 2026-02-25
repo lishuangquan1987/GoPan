@@ -2158,9 +2158,30 @@
             }
         }
 
-        function contextDownload() {
+        async function contextDownload() {
             if (contextFile && contextFile.type === 1) {
-                window.open(`/api/files/${contextFile.id}/download`, '_blank');
+                try {
+                    showLoading();
+                    // 使用APIUtils.downloadFile函数来下载文件，这样会包含授权令牌
+                    const blob = await APIUtils.downloadFile(contextFile.id);
+                    
+                    // 创建一个下载链接
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = contextFile.name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    showToast('下载已开始', 'success');
+                } catch (error) {
+                    console.error('下载失败:', error);
+                    showToast('下载失败', 'error');
+                } finally {
+                    hideLoading();
+                }
             }
         }
 
