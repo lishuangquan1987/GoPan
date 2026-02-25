@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GoPan - 分享</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>网盘 - 分享</title>
+    <script src="css/tailwind.min.css"></script>
     <style>
         .file-item:hover {
             background-color: #f3f4f6;
@@ -118,7 +118,29 @@
                 alert('请输入密码');
                 return;
             }
-            window.location.href = `/share.html?code=${code}&password=${encodeURIComponent(pwd)}`;
+            // Check if password is correct before redirecting
+            verifyPassword(pwd);
+        }
+
+        async function verifyPassword(pwd) {
+            try {
+                const response = await fetch(API_BASE + `/shares/${code}?password=${encodeURIComponent(pwd)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Password correct, redirect
+                    window.location.href = `/share.html?code=${code}&password=${encodeURIComponent(pwd)}`;
+                } else if (data.error === 'Invalid password') {
+                    // Password incorrect
+                    alert('密码错误，请重新输入');
+                } else {
+                    // Other error
+                    alert(data.error || '验证失败');
+                }
+            } catch (error) {
+                console.error('Password verification failed:', error);
+                alert('验证失败');
+            }
         }
 
         function displayShare(data) {
@@ -142,6 +164,9 @@
                         </button>
                         <button onclick="downloadFile()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                             下载
+                        </button>
+                        <button onclick="saveToMyDrive(${node.id})" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                            存到我的网盘
                         </button>
                     </div>
                     <div class="text-sm text-gray-600 text-center mt-6">
@@ -271,7 +296,14 @@
             title.textContent = data.file_name || '预览';
             modal.classList.remove('hidden');
             
-            if (data.type === 'text') {
+            // Always display images directly, regardless of type
+            if (data.mime_type && data.mime_type.startsWith('image/')) {
+                content.innerHTML = `
+                    <div class="flex items-center justify-center h-full">
+                        <img src="${data.url}" alt="${escapeHtml(data.file_name)}" class="max-w-full max-h-full">
+                    </div>
+                `;
+            } else if (data.type === 'text') {
                 content.innerHTML = `
                     <textarea class="w-full h-full p-4 border border-gray-300 rounded font-mono text-sm" readonly>${escapeHtml(data.content)}</textarea>
                 `;
@@ -280,21 +312,13 @@
                     <iframe src="${data.url}" class="w-full h-full border-0" style="min-height: 600px;"></iframe>
                 `;
             } else if (data.type === 'url') {
-                // For images and other direct URLs
-                if (data.mime_type && data.mime_type.startsWith('image/')) {
-                    content.innerHTML = `
-                        <div class="flex items-center justify-center h-full">
-                            <img src="${data.url}" alt="${escapeHtml(data.file_name)}" class="max-w-full max-h-full">
-                        </div>
-                    `;
-                } else {
-                    content.innerHTML = `
-                        <div class="text-center py-8">
-                            <p class="mb-4">无法预览此文件类型</p>
-                            <a href="${data.url}" target="_blank" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">下载文件</a>
-                        </div>
-                    `;
-                }
+                // For other direct URLs
+                content.innerHTML = `
+                    <div class="text-center py-8">
+                        <p class="mb-4">无法预览此文件类型</p>
+                        <a href="${data.url}" target="_blank" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">下载文件</a>
+                    </div>
+                `;
             }
         }
 
@@ -338,6 +362,133 @@
                 closePreview();
             }
         });
+
+        // Save to my drive functions
+        let currentFileId = null;
+
+        async function saveToMyDrive(fileId) {
+            currentFileId = fileId;
+            
+            // Check if user is logged in
+            if (!localStorage.getItem('token')) {
+                alert('请先登录');
+                window.location.href = '/index.html';
+                return;
+            }
+
+            try {
+                // Get user's folder tree
+                const tree = await getFolderTree();
+                showFolderSelectDialog(tree);
+            } catch (error) {
+                console.error('Failed to get folder tree:', error);
+                alert('获取文件夹列表失败');
+            }
+        }
+
+        async function getFolderTree() {
+            const response = await fetch(API_BASE + '/files/tree', {
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('token')
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to get folder tree');
+            }
+
+            const data = await response.json();
+            return data.tree;
+        }
+
+        function showFolderSelectDialog(tree) {
+            const dialogId = 'folderSelectDialog';
+            const content = document.getElementById('content');
+
+            content.innerHTML = `
+                <div class="max-w-md mx-auto">
+                    <div class="mb-4">
+                        <h3 class="text-lg font-bold mb-2">选择存储位置</h3>
+                        <div id="${dialogId}_tree" class="border border-gray-300 rounded-lg max-h-80 overflow-auto p-2 mb-4">
+                            ${renderFolderTree(tree)}
+                        </div>
+                        <input type="hidden" id="${dialogId}_selected" value="">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="confirmSaveToDrive()" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">
+                            确认保存
+                        </button>
+                        <button onclick="loadShare()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
+                            取消
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFolderTree(tree, level = 0) {
+            let html = '';
+            tree.forEach(folder => {
+                const indent = ' '.repeat(level * 2);
+                html += `
+                    <div class="folder-item px-2 py-1 hover:bg-gray-100 rounded cursor-pointer" 
+                         data-id="${folder.id}" data-name="${escapeHtml(folder.name)}" 
+                         onclick="selectFolder(this)">
+                        ${indent}📁 ${escapeHtml(folder.name)}
+                    </div>
+                `;
+                if (folder.children && folder.children.length > 0) {
+                    html += renderFolderTree(folder.children, level + 1);
+                }
+            });
+            return html;
+        }
+
+        function selectFolder(element) {
+            // Remove selected class from all folder items
+            document.querySelectorAll('.folder-item').forEach(item => {
+                item.classList.remove('bg-blue-100', 'font-medium');
+            });
+
+            // Add selected class to clicked folder
+            element.classList.add('bg-blue-100', 'font-medium');
+
+            // Set selected folder ID
+            const folderId = element.dataset.id;
+            document.getElementById('folderSelectDialog_selected').value = folderId;
+        }
+
+        async function confirmSaveToDrive() {
+            if (!currentFileId) return;
+
+            const selectedFolderId = document.getElementById('folderSelectDialog_selected').value;
+
+            try {
+                const decodedPassword = password ? decodeURIComponent(password) : '';
+                const response = await fetch(API_BASE + `/shares/${code}/save${decodedPassword ? '?password=' + encodeURIComponent(decodedPassword) : ''}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    },
+                    body: JSON.stringify({
+                        file_id: currentFileId,
+                        parent_id: selectedFolderId || 'root'
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('保存成功！');
+                    loadShare();
+                } else {
+                    alert(data.error || '保存失败');
+                }
+            } catch (error) {
+                console.error('Save to drive failed:', error);
+                alert('保存失败');
+            }
+        }
 
         if (code) {
             loadShare();

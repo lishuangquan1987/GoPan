@@ -106,6 +106,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		api.GET("/shares/:code/download", shareHandler.DownloadShare)
 		api.GET("/shares/:code/folder/:id", shareHandler.GetShareFolder)
 		api.GET("/shares/:code/preview/:id", shareHandler.PreviewShareFile)
+		
+		// Protected share routes (save to my drive)
+		protected.POST("/shares/:code/save", shareHandler.SaveToMyDrive)
 	}
 
 	return router

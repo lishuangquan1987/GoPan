@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gopan-server/config"
 	"gopan-server/ent"
+	"gopan-server/ent/filehash"
 	"gopan-server/ent/node"
 	"gopan-server/ent/share"
 	"gopan-server/ent/user"
@@ -45,11 +46,11 @@ func (h *ShareHandler) CreateShare(c *gin.Context) {
 	userID := c.GetString("userID")
 
 	var req struct {
-		NodeID      string    `json:"node_id" binding:"required"`
-		ShareType   int       `json:"share_type"` // 0: permanent, 1: temporary
-		ExpiresAt   *time.Time `json:"expires_at"`
-		Password    string    `json:"password"`
-		MaxAccessCount int    `json:"max_access_count"`
+		NodeID         string     `json:"node_id" binding:"required"`
+		ShareType      int        `json:"share_type"` // 0: permanent, 1: temporary
+		ExpiresAt      *time.Time `json:"expires_at"`
+		Password       string     `json:"password"`
+		MaxAccessCount int        `json:"max_access_count"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -140,13 +141,13 @@ func (h *ShareHandler) CreateShare(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":             s.ID,
-		"code":           s.Code,
-		"share_type":     s.ShareType,
-		"expires_at":     respExpiresAt,
-		"has_password":   s.Password != "",
+		"id":               s.ID,
+		"code":             s.Code,
+		"share_type":       s.ShareType,
+		"expires_at":       respExpiresAt,
+		"has_password":     s.Password != "",
 		"max_access_count": respMaxAccessCount,
-		"created_at":     s.CreatedAt,
+		"created_at":       s.CreatedAt,
 	})
 }
 
@@ -175,8 +176,13 @@ func (h *ShareHandler) GetShare(c *gin.Context) {
 
 	// Check password if required
 	if s.Password != "" {
-		if password == "" || password != s.Password {
+		if password == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Password required"})
+			return
+		}
+
+		if password != s.Password {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Password incorrect"})
 			return
 		}
 	}
@@ -202,10 +208,10 @@ func (h *ShareHandler) GetShare(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code":           s.Code,
-		"share_type":     s.ShareType,
-		"expires_at":     respExpiresAt,
-		"access_count":   s.AccessCount,
+		"code":             s.Code,
+		"share_type":       s.ShareType,
+		"expires_at":       respExpiresAt,
+		"access_count":     s.AccessCount,
 		"max_access_count": respMaxAccessCount,
 		"node": gin.H{
 			"id":        node.ID,
@@ -242,8 +248,11 @@ func (h *ShareHandler) DownloadShare(c *gin.Context) {
 
 	// Check password if required
 	if share.Password != "" {
-		if password == "" || password != share.Password {
+		if password == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Password required"})
+			return
+		} else if password != share.Password {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
 			return
 		}
 	}
@@ -359,14 +368,14 @@ func (h *ShareHandler) GetMyShares(c *gin.Context) {
 			maxAccessCount = &s.MaxAccessCount
 		}
 		result[i] = gin.H{
-			"id":             s.ID,
-			"code":           s.Code,
-			"share_type":     s.ShareType,
-			"expires_at":     expiresAt,
-			"access_count":   s.AccessCount,
+			"id":               s.ID,
+			"code":             s.Code,
+			"share_type":       s.ShareType,
+			"expires_at":       expiresAt,
+			"access_count":     s.AccessCount,
 			"max_access_count": maxAccessCount,
-			"has_password":   s.Password != "",
-			"created_at":     s.CreatedAt,
+			"has_password":     s.Password != "",
+			"created_at":       s.CreatedAt,
 			"node": gin.H{
 				"id":   node.ID,
 				"name": node.Name,
@@ -425,7 +434,7 @@ func (h *ShareHandler) GetShareFolder(c *gin.Context) {
 
 	// Verify folder is within shared node's subtree
 	sharedNode := share.Edges.Node
-	
+
 	// Check if folder is the shared node itself or a descendant
 	isValidFolder := false
 	if sharedNode.ID == folderID {
@@ -473,11 +482,11 @@ func (h *ShareHandler) GetShareFolder(c *gin.Context) {
 	files := make([]gin.H, len(nodes))
 	for i, n := range nodes {
 		files[i] = gin.H{
-			"id":        n.ID,
-			"name":      n.Name,
-			"type":      n.Type,
-			"size":      n.Size,
-			"mime_type": n.MimeType,
+			"id":         n.ID,
+			"name":       n.Name,
+			"type":       n.Type,
+			"size":       n.Size,
+			"mime_type":  n.MimeType,
 			"updated_at": n.UpdatedAt,
 		}
 	}
@@ -639,6 +648,17 @@ func (h *ShareHandler) PreviewShareFile(c *gin.Context) {
 		return
 	}
 
+	// For images, use direct URL
+	if strings.HasPrefix(mimeType, "image/") {
+		c.JSON(http.StatusOK, gin.H{
+			"type":      "url",
+			"url":       presignedURL.String(),
+			"mime_type": mimeType,
+			"file_name": file.Name,
+		})
+		return
+	}
+
 	// For other files, use kkFileView if enabled
 	if h.cfg.Preview.KKFileView.Enabled && h.cfg.Preview.KKFileView.BaseURL != "" {
 		encodedURL := url.QueryEscape(presignedURL.String())
@@ -658,6 +678,213 @@ func (h *ShareHandler) PreviewShareFile(c *gin.Context) {
 		"url":       presignedURL.String(),
 		"mime_type": mimeType,
 		"file_name": file.Name,
+	})
+}
+
+// SaveToMyDrive handles POST /api/shares/:code/save - Save shared file to my drive
+func (h *ShareHandler) SaveToMyDrive(c *gin.Context) {
+	userID := c.GetString("userID")
+	code := c.Param("code")
+	password := c.Query("password")
+
+	var req struct {
+		FileID   int    `json:"file_id" binding:"required"`
+		ParentID string `json:"parent_id"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Parse user ID
+	uid, err := strconv.Atoi(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Get share
+	share, err := database.Client.Share.Query().
+		Where(share.CodeEQ(code)).
+		WithNode().
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Share not found"})
+		return
+	}
+
+	// Check if expired
+	if !share.ExpiresAt.IsZero() && share.ExpiresAt.Before(time.Now()) {
+		c.JSON(http.StatusGone, gin.H{"error": "Share has expired"})
+		return
+	}
+
+	// Check password if required
+	if share.Password != "" {
+		if password == "" || password != share.Password {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Password required"})
+			return
+		}
+	}
+
+	// Check max access count
+	if share.MaxAccessCount > 0 && share.AccessCount >= share.MaxAccessCount {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Share access limit reached"})
+		return
+	}
+
+	// Get file
+	file, err := database.Client.Node.Query().
+		Where(node.IDEQ(req.FileID)).
+		Where(node.TypeEQ(1)). // Only files
+		Where(node.IsDeletedEQ(false)).
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+
+	// Verify file is within shared node's subtree
+	sharedNode := share.Edges.Node
+	isValidFile := false
+	if sharedNode.ID == req.FileID {
+		isValidFile = true
+	} else {
+		// Check if file is a descendant of shared node
+		currentNode, err := database.Client.Node.Query().
+			Where(node.IDEQ(req.FileID)).
+			WithParent().
+			Only(ctx)
+		if err == nil {
+			// Traverse up to check if it's under shared node
+			for currentNode != nil {
+				if currentNode.ID == sharedNode.ID {
+					isValidFile = true
+					break
+				}
+				if currentNode.Edges.Parent == nil {
+					break
+				}
+				currentNode = currentNode.Edges.Parent
+			}
+		}
+	}
+
+	if !isValidFile {
+		c.JSON(http.StatusForbidden, gin.H{"error": "File not accessible via this share"})
+		return
+	}
+
+	// Check if user has enough capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	if user.TotalUsed+file.Size > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":  "Insufficient storage capacity",
+			"used":   user.TotalUsed,
+			"max":    user.TotalQuota,
+			"needed": file.Size,
+		})
+		return
+	}
+
+	// Parse parent ID
+	var parentIDInt *int
+	if req.ParentID != "" && req.ParentID != "root" {
+		pid, err := strconv.Atoi(req.ParentID)
+		if err == nil {
+			parentIDInt = &pid
+		}
+	}
+
+	// Generate new name if needed (handle name conflicts)
+	newName := file.Name
+	baseName := file.Name
+	ext := ""
+
+	// Extract extension for files
+	lastDot := strings.LastIndex(file.Name, ".")
+	if lastDot > 0 {
+		baseName = file.Name[:lastDot]
+		ext = file.Name[lastDot:]
+	}
+
+	// Check for name conflicts and append (1), (2), etc.
+	counter := 1
+	for {
+		query := queryNodesByOwner(database.Client, uid).
+			Where(node.NameEQ(newName)).
+			Where(node.IsDeletedEQ(false))
+
+		// Check parent relationship
+		if parentIDInt == nil {
+			query = query.Where(node.Not(node.HasParent()))
+		} else {
+			query = query.Where(node.HasParentWith(node.IDEQ(*parentIDInt)))
+		}
+
+		exists, err := query.Exist(ctx)
+		if err != nil || !exists {
+			break
+		}
+		newName = fmt.Sprintf("%s (%d)%s", baseName, counter, ext)
+		counter++
+		if counter > 1000 { // Safety limit
+			break
+		}
+	}
+
+	// Create new node record
+	newNode, err := database.Client.Node.Create().
+		SetName(newName).
+		SetType(file.Type).
+		SetSize(file.Size).
+		SetMimeType(file.MimeType).
+		SetFileHash(file.FileHash).
+		SetMinioObject(file.MinioObject).
+		SetOwnerID(uid).
+		SetNillableParentID(parentIDInt).
+		Save(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create file record"})
+		return
+	}
+
+	// Update reference count if it's a file
+	if file.Type == 1 && file.FileHash != "" {
+		fileHashRecord, err := database.Client.FileHash.Query().
+			Where(filehash.HashEQ(file.FileHash)).
+			Only(ctx)
+		if err == nil {
+			fileHashRecord.Update().AddReferenceCount(1).Save(ctx)
+		}
+	}
+
+	// Update user's used storage
+	_, err = database.Client.User.UpdateOneID(uid).
+		AddTotalUsed(file.Size).
+		Save(ctx)
+	if err != nil {
+		// Log error but don't fail the save
+		_ = err
+	}
+
+	// Increment access count
+	share.Update().AddAccessCount(1).Save(ctx)
+
+	parentID := getParentID(newNode)
+	c.JSON(http.StatusOK, gin.H{
+		"id":         newNode.ID,
+		"name":       newNode.Name,
+		"parent_id":  parentID,
+		"created_at": newNode.CreatedAt,
 	})
 }
 
@@ -716,4 +943,3 @@ func getMimeTypeFromExt(ext string) string {
 	}
 	return "application/octet-stream"
 }
-
