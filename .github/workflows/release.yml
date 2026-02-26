@@ -1,0 +1,127 @@
+name: Build and Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: ''
+          - goos: linux
+            goarch: arm64
+            suffix: ''
+          - goos: windows
+            goarch: amd64
+            suffix: '.exe'
+          - goos: windows
+            goarch: arm64
+            suffix: '.exe'
+          - goos: darwin
+            goarch: amd64
+            suffix: ''
+          - goos: darwin
+            goarch: arm64
+            suffix: ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          cd src
+          go build -ldflags="-s -w" -o gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} .
+
+      - name: Create archive
+        run: |
+          cd src
+          mkdir -p release
+          cp gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} release/
+          cp Config.json.example release/Config.json.example
+          cp ../README.MD release/README.md
+          cp ../Caddyfile.simple release/Caddyfile.simple
+          cp ../DEPLOYMENT_SIMPLE.md release/DEPLOYMENT.md
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            cd release
+            zip -r ../gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.zip .
+          else
+            tar -czvf ../gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C release .
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: src/gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.*
+
+  release:
+    name: Upload Release Assets
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux AMD64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-linux-amd64
+          path: ./artifacts
+
+      - name: Download Linux ARM64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-linux-arm64
+          path: ./artifacts
+
+      - name: Download Windows AMD64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-windows-amd64
+          path: ./artifacts
+
+      - name: Download Windows ARM64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-windows-arm64
+          path: ./artifacts
+
+      - name: Download Darwin AMD64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-darwin-amd64
+          path: ./artifacts
+
+      - name: Download Darwin ARM64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-darwin-arm64
+          path: ./artifacts
+
+      - name: List artifacts
+        run: ls -la ./artifacts
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/gopan-server-linux-amd64.tar.gz
+            artifacts/gopan-server-linux-arm64.tar.gz
+            artifacts/gopan-server-windows-amd64.zip
+            artifacts/gopan-server-windows-arm64.zip
+            artifacts/gopan-server-darwin-amd64.tar.gz
+            artifacts/gopan-server-darwin-arm64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
