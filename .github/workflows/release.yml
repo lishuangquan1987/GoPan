@@ -14,23 +14,73 @@ jobs:
     strategy:
       matrix:
         include:
+          # Linux platforms
+          - goos: linux
+            goarch: 386
+            suffix: ''
           - goos: linux
             goarch: amd64
             suffix: ''
           - goos: linux
             goarch: arm64
             suffix: ''
+          - goos: linux
+            goarch: armv5
+            suffix: ''
+          - goos: linux
+            goarch: armv6
+            suffix: ''
+          - goos: linux
+            goarch: armv7
+            suffix: ''
+          - goos: linux
+            goarch: riscv64
+            suffix: ''
+          # Windows platforms
+          - goos: windows
+            goarch: 386
+            suffix: '.exe'
           - goos: windows
             goarch: amd64
             suffix: '.exe'
           - goos: windows
             goarch: arm64
             suffix: '.exe'
+          # macOS platforms
           - goos: darwin
             goarch: amd64
             suffix: ''
           - goos: darwin
             goarch: arm64
+            suffix: ''
+          # FreeBSD platforms
+          - goos: freebsd
+            goarch: 386
+            suffix: ''
+          - goos: freebsd
+            goarch: amd64
+            suffix: ''
+          - goos: freebsd
+            goarch: arm64
+            suffix: ''
+          # OpenBSD platforms
+          - goos: openbsd
+            goarch: 386
+            suffix: ''
+          - goos: openbsd
+            goarch: amd64
+            suffix: ''
+          - goos: openbsd
+            goarch: arm64
+            suffix: ''
+          - goos: openbsd
+            goarch: armv5
+            suffix: ''
+          - goos: openbsd
+            goarch: armv6
+            suffix: ''
+          - goos: openbsd
+            goarch: armv7
             suffix: ''
     steps:
       - name: Checkout code
@@ -66,10 +116,10 @@ jobs:
           cp ../DEPLOYMENT_SIMPLE.md release/DEPLOYMENT.md
           if [ "${{ matrix.goos }}" = "windows" ]; then
             cd release
-            zip -r gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.zip .
-            mv gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.zip ..
+            zip -r ${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.zip .
+            mv ${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.zip ..
           else
-            tar -czvf gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C release .
+            tar -czvf ${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.tar.gz -C release .
           fi
           cd ..
 
@@ -77,7 +127,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: src/gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.*
+          path: src/${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.*
 
   release:
     name: Upload Release Assets
@@ -127,11 +177,26 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/gopan-server-linux-amd64.tar.gz
-            artifacts/gopan-server-linux-arm64.tar.gz
-            artifacts/gopan-server-windows-amd64.zip
-            artifacts/gopan-server-windows-arm64.zip
-            artifacts/gopan-server-darwin-amd64.tar.gz
-            artifacts/gopan-server-darwin-arm64.tar.gz
+            artifacts/linux-386-gopan-server.tar.gz
+            artifacts/linux-amd64-gopan-server.tar.gz
+            artifacts/linux-arm64-gopan-server.tar.gz
+            artifacts/linux-armv5-gopan-server.tar.gz
+            artifacts/linux-armv6-gopan-server.tar.gz
+            artifacts/linux-armv7-gopan-server.tar.gz
+            artifacts/linux-riscv64-gopan-server.tar.gz
+            artifacts/windows-386-gopan-server.zip
+            artifacts/windows-amd64-gopan-server.zip
+            artifacts/windows-arm64-gopan-server.zip
+            artifacts/darwin-amd64-gopan-server.tar.gz
+            artifacts/darwin-arm64-gopan-server.tar.gz
+            artifacts/freebsd-386-gopan-server.tar.gz
+            artifacts/freebsd-amd64-gopan-server.tar.gz
+            artifacts/freebsd-arm64-gopan-server.tar.gz
+            artifacts/openbsd-386-gopan-server.tar.gz
+            artifacts/openbsd-amd64-gopan-server.tar.gz
+            artifacts/openbsd-arm64-gopan-server.tar.gz
+            artifacts/openbsd-armv5-gopan-server.tar.gz
+            artifacts/openbsd-armv6-gopan-server.tar.gz
+            artifacts/openbsd-armv7-gopan-server.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
