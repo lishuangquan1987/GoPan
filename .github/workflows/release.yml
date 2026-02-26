@@ -82,6 +82,7 @@ jobs:
           - goos: openbsd
             goarch: armv7
             suffix: ''
+      fail-fast: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -134,6 +135,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Download Linux 386 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-linux-386
+          path: ./artifacts
+
       - name: Download Linux AMD64 artifact
         uses: actions/download-artifact@v4
         with:
@@ -144,6 +151,36 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: gopan-server-linux-arm64
+          path: ./artifacts
+
+      - name: Download Linux ARMv5 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-linux-armv5
+          path: ./artifacts
+
+      - name: Download Linux ARMv6 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-linux-armv6
+          path: ./artifacts
+
+      - name: Download Linux ARMv7 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-linux-armv7
+          path: ./artifacts
+
+      - name: Download Linux RISC-V64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-linux-riscv64
+          path: ./artifacts
+
+      - name: Download Windows 386 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-windows-386
           path: ./artifacts
 
       - name: Download Windows AMD64 artifact
@@ -168,6 +205,60 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: gopan-server-darwin-arm64
+          path: ./artifacts
+
+      - name: Download FreeBSD 386 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-freebsd-386
+          path: ./artifacts
+
+      - name: Download FreeBSD AMD64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-freebsd-amd64
+          path: ./artifacts
+
+      - name: Download FreeBSD ARM64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-freebsd-arm64
+          path: ./artifacts
+
+      - name: Download OpenBSD 386 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-openbsd-386
+          path: ./artifacts
+
+      - name: Download OpenBSD AMD64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-openbsd-amd64
+          path: ./artifacts
+
+      - name: Download OpenBSD ARM64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-openbsd-arm64
+          path: ./artifacts
+
+      - name: Download OpenBSD ARMv5 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-openbsd-armv5
+          path: ./artifacts
+
+      - name: Download OpenBSD ARMv6 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-openbsd-armv6
+          path: ./artifacts
+
+      - name: Download OpenBSD ARMv7 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gopan-server-openbsd-armv7
           path: ./artifacts
 
       - name: List artifacts
