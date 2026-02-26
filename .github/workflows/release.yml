@@ -136,159 +136,19 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Download Linux 386 artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: gopan-server-linux-386
-          path: ./artifacts
-
-      - name: Download Linux AMD64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-linux-amd64
-          path: ./artifacts
-
-      - name: Download Linux ARM64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-linux-arm64
-          path: ./artifacts
-
-      - name: Download Linux ARMv5 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-linux-armv5
-          path: ./artifacts
-
-      - name: Download Linux ARMv6 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-linux-armv6
-          path: ./artifacts
-
-      - name: Download Linux ARMv7 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-linux-armv7
-          path: ./artifacts
-
-      - name: Download Linux RISC-V64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-linux-riscv64
-          path: ./artifacts
-
-      - name: Download Windows 386 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-windows-386
-          path: ./artifacts
-
-      - name: Download Windows AMD64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-windows-amd64
-          path: ./artifacts
-
-      - name: Download Windows ARM64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-windows-arm64
-          path: ./artifacts
-
-      - name: Download Darwin AMD64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-darwin-amd64
-          path: ./artifacts
-
-      - name: Download Darwin ARM64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-darwin-arm64
-          path: ./artifacts
-
-      - name: Download FreeBSD 386 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-freebsd-386
-          path: ./artifacts
-
-      - name: Download FreeBSD AMD64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-freebsd-amd64
-          path: ./artifacts
-
-      - name: Download FreeBSD ARM64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-freebsd-arm64
-          path: ./artifacts
-
-      - name: Download OpenBSD 386 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-openbsd-386
-          path: ./artifacts
-
-      - name: Download OpenBSD AMD64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-openbsd-amd64
-          path: ./artifacts
-
-      - name: Download OpenBSD ARM64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-openbsd-arm64
-          path: ./artifacts
-
-      - name: Download OpenBSD ARMv5 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-openbsd-armv5
-          path: ./artifacts
-
-      - name: Download OpenBSD ARMv6 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-openbsd-armv6
-          path: ./artifacts
-
-      - name: Download OpenBSD ARMv7 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gopan-server-openbsd-armv7
           path: ./artifacts
 
       - name: List artifacts
-        run: ls -la ./artifacts
+        run: |
+          ls -la ./artifacts
+          find ./artifacts -type f -name "*.tar.gz" -o -name "*.zip" | sort
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/linux-386-gopan-server.tar.gz
-            artifacts/linux-amd64-gopan-server.tar.gz
-            artifacts/linux-arm64-gopan-server.tar.gz
-            artifacts/linux-armv5-gopan-server.tar.gz
-            artifacts/linux-armv6-gopan-server.tar.gz
-            artifacts/linux-armv7-gopan-server.tar.gz
-            artifacts/linux-riscv64-gopan-server.tar.gz
-            artifacts/windows-386-gopan-server.zip
-            artifacts/windows-amd64-gopan-server.zip
-            artifacts/windows-arm64-gopan-server.zip
-            artifacts/darwin-amd64-gopan-server.tar.gz
-            artifacts/darwin-arm64-gopan-server.tar.gz
-            artifacts/freebsd-386-gopan-server.tar.gz
-            artifacts/freebsd-amd64-gopan-server.tar.gz
-            artifacts/freebsd-arm64-gopan-server.tar.gz
-            artifacts/openbsd-386-gopan-server.tar.gz
-            artifacts/openbsd-amd64-gopan-server.tar.gz
-            artifacts/openbsd-arm64-gopan-server.tar.gz
-            artifacts/openbsd-armv5-gopan-server.tar.gz
-            artifacts/openbsd-armv6-gopan-server.tar.gz
-            artifacts/openbsd-armv7-gopan-server.tar.gz
+          files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
