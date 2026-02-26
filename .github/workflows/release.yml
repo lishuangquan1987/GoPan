@@ -16,30 +16,15 @@ jobs:
         include:
           # Linux platforms
           - goos: linux
-            goarch: 386
-            suffix: ''
-          - goos: linux
             goarch: amd64
             suffix: ''
           - goos: linux
             goarch: arm64
             suffix: ''
           - goos: linux
-            goarch: armv5
-            suffix: ''
-          - goos: linux
-            goarch: armv6
-            suffix: ''
-          - goos: linux
-            goarch: armv7
-            suffix: ''
-          - goos: linux
             goarch: riscv64
             suffix: ''
           # Windows platforms
-          - goos: windows
-            goarch: 386
-            suffix: '.exe'
           - goos: windows
             goarch: amd64
             suffix: '.exe'
@@ -55,9 +40,6 @@ jobs:
             suffix: ''
           # FreeBSD platforms
           - goos: freebsd
-            goarch: 386
-            suffix: ''
-          - goos: freebsd
             goarch: amd64
             suffix: ''
           - goos: freebsd
@@ -65,22 +47,10 @@ jobs:
             suffix: ''
           # OpenBSD platforms
           - goos: openbsd
-            goarch: 386
-            suffix: ''
-          - goos: openbsd
             goarch: amd64
             suffix: ''
           - goos: openbsd
             goarch: arm64
-            suffix: ''
-          - goos: openbsd
-            goarch: armv5
-            suffix: ''
-          - goos: openbsd
-            goarch: armv6
-            suffix: ''
-          - goos: openbsd
-            goarch: armv7
             suffix: ''
       fail-fast: false
     steps:
@@ -109,19 +79,16 @@ jobs:
       - name: Create archive
         run: |
           cd src
-          mkdir -p release
-          cp gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} release/
-          cp Config.json.example release/Config.json.example
-          cp ../README.MD release/README.md
-          cp ../Caddyfile.simple release/Caddyfile.simple
-          cp ../DEPLOYMENT_SIMPLE.md release/DEPLOYMENT.md
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            cd release
-            zip -r ${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.zip .
-            mv ${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.zip ..
-          else
-            tar -czvf ${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.tar.gz -C release .
-          fi
+          # Create temporary directory for files
+          mkdir -p temp_archive
+          # Copy only necessary files
+          cp gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} temp_archive/
+          cp Config.json.example temp_archive/
+          cp ../README.MD temp_archive/README.md
+          # Create tar.gz archive
+          tar -czvf ${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.tar.gz -C temp_archive .
+          # Clean up
+          rm -rf temp_archive
           cd ..
 
       - name: Upload artifact
