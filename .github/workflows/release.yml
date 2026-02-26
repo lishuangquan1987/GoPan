@@ -38,6 +38,11 @@ jobs:
         with:
           go-version: '1.24'
 
+      - name: Generate Ent schema code
+        run: |
+          cd src
+          go run -mod=mod entgo.io/ent/cmd/ent generate ./ent/schema
+
       - name: Build binary
         env:
           GOOS: ${{ matrix.goos }}
@@ -58,10 +63,12 @@ jobs:
           cp ../DEPLOYMENT_SIMPLE.md release/DEPLOYMENT.md
           if [ "${{ matrix.goos }}" = "windows" ]; then
             cd release
-            zip -r ../gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.zip .
+            zip -r gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.zip .
+            mv gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.zip ..
           else
-            tar -czvf ../gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C release .
+            tar -czvf gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz -C release .
           fi
+          cd ..
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
