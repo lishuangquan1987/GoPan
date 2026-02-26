@@ -83,7 +83,7 @@ jobs:
           mkdir -p temp_archive
           # Copy only necessary files
           cp gopan-server-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} temp_archive/
-          cp Config.json.sample temp_archive/Config.json
+          cp Config.json.example temp_archive/Config.json
           cp ../README.MD temp_archive/README.md
           # Create tar.gz archive
           tar -czvf ${{ matrix.goos }}-${{ matrix.goarch }}-gopan-server.tar.gz -C temp_archive .
