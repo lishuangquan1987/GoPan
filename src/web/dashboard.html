@@ -9,6 +9,7 @@
     <script src="js/utils.js"></script>
     <script src="js/api.js"></script>
     <script src="js/capacity.js"></script>
+    <script src="js/upload-manager.js"></script>
     <style>
         /* 禁止文本选择 */
         .file-list-container,
@@ -865,14 +866,42 @@
     </div>
 
     <!-- Upload Dialog -->
+    <!-- Upload Dialog -->
     <div id="uploadDialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-            <h2 class="text-xl font-bold mb-4">上传文件</h2>
-            <div class="mb-4">
-                <label class="block mb-2 text-sm font-medium">选择文件</label>
-                <input type="file" id="fileInput" multiple class="w-full border border-gray-300 rounded p-2">
+        <div class="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold">上传文件</h2>
+                <div id="uploadStats" class="text-sm text-gray-500"></div>
             </div>
-            <div id="uploadProgress" class="flex-1 overflow-y-auto space-y-3 mb-4"></div>
+            
+            <!-- Upload Controls -->
+            <div class="mb-4 flex items-center gap-2">
+                <label class="flex-1">
+                    <input type="file" id="fileInput" multiple class="hidden">
+                    <div class="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors">
+                        <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <span class="text-sm text-gray-600">点击或拖拽文件到此处上传</span>
+                    </div>
+                </label>
+            </div>
+            
+            <!-- Global Controls -->
+            <div id="uploadGlobalControls" class="mb-4 flex items-center gap-2 hidden">
+                <button id="pauseAllBtn" onclick="togglePauseAll()" class="px-3 py-1.5 bg-yellow-500 text-white rounded hover:bg-yellow-600 flex items-center gap-1 text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>全部暂停</span>
+                </button>
+                <button onclick="cancelAllUploads()" class="px-3 py-1.5 bg-red-500 text-white rounded hover:bg-red-600 flex items-center gap-1 text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <span>全部取消</span>
+                </button>
+            </div>
+            
+            <!-- Upload List -->
+            <div id="uploadProgress" class="flex-1 overflow-y-auto space-y-2 mb-4 max-h-[50vh]"></div>
+            
             <div class="flex justify-end gap-2">
                 <button onclick="closeUploadDialog()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -2478,37 +2507,96 @@
             
             // Batch delete if multiple files selected
             const filesToDelete = selectedFiles.size > 1 ? Array.from(selectedFiles) : [contextFile.id];
+            const count = filesToDelete.length;
             
-            showConfirm('确认删除', `确定要删除 ${filesToDelete.length} 个文件吗？文件将移动到回收站。`, async () => {
-                try {
-                    let successCount = 0;
-                    let failCount = 0;
-                    
-                    for (const id of filesToDelete) {
-                        try {
-                            await apiCall(`/files/${id}`, { method: 'DELETE' });
+            // Use custom confirm dialog that preserves closure
+            const confirmed = await showConfirmAsync('确认删除', `确定要删除 ${count} 个文件吗？文件将移动到回收站。`);
+            if (!confirmed) return;
+            
+            try {
+                let successCount = 0;
+                let failCount = 0;
+                let errorDetails = [];
+                
+                for (const id of filesToDelete) {
+                    try {
+                        const response = await fetch(`${API_BASE}/files/${id}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        
+                        if (response.ok) {
                             successCount++;
-                        } catch (error) {
+                        } else {
                             failCount++;
+                            const errorText = await response.text();
+                            console.error(`Delete failed for ID ${id}:`, response.status, errorText);
+                            errorDetails.push(`ID ${id}: ${response.status} - ${errorText}`);
                         }
+                    } catch (error) {
+                        failCount++;
+                        console.error(`Delete error for ID ${id}:`, error);
+                        errorDetails.push(`ID ${id}: ${error.message}`);
                     }
-                    
-                    if (successCount > 0) {
-                        showToast(`成功删除 ${successCount} 个文件`, 'success');
-                    }
-                    if (failCount > 0) {
-                        showToast(`${failCount} 个文件删除失败`, 'error');
-                    }
-                    
-                    if (isTrashMode) {
-                        navigateToTrash();
-                    } else {
-                        loadFiles(currentPath);
-                    }
-                    selectedFiles.clear();
-                } catch (error) {
-                    showToast('删除失败', 'error');
                 }
+                
+                if (successCount > 0) {
+                    showToast(`成功删除 ${successCount} 个文件`, 'success');
+                }
+                if (failCount > 0) {
+                    showToast(`${failCount} 个文件删除失败`, 'error');
+                    console.error('Delete errors:', errorDetails);
+                }
+                
+                if (isTrashMode) {
+                    navigateToTrash();
+                } else {
+                    loadFiles(currentPath);
+                }
+                selectedFiles.clear();
+            } catch (error) {
+                console.error('Delete operation error:', error);
+                showToast('删除失败: ' + error.message, 'error');
+            }
+        }
+        
+        // Async confirm dialog that returns a Promise
+        function showConfirmAsync(title, message) {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                overlay.innerHTML = `
+                    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                        <h3 class="text-lg font-bold mb-2">${title}</h3>
+                        <p class="mb-4">${message}</p>
+                        <div class="flex justify-end gap-2">
+                            <button id="cancelBtn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">取消</button>
+                            <button id="confirmBtn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">确定</button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(overlay);
+                
+                overlay.querySelector('#cancelBtn').onclick = () => {
+                    document.body.removeChild(overlay);
+                    resolve(false);
+                };
+                
+                overlay.querySelector('#confirmBtn').onclick = () => {
+                    document.body.removeChild(overlay);
+                    resolve(true);
+                };
+                
+                // Close on backdrop click
+                overlay.onclick = (e) => {
+                    if (e.target === overlay) {
+                        document.body.removeChild(overlay);
+                        resolve(false);
+                    }
+                };
             });
         }
 
@@ -2542,13 +2630,49 @@
             fileInput.onchange = handleFileSelect;
         }
 
-        let uploadQueue = [];
-        let isUploading = false;
+        // 上传管理器实例
+        let uploadManager = null;
+
+        function initUploadManager() {
+            if (uploadManager) return;
+            
+            uploadManager = new UploadManager({
+                maxConcurrent: 5,
+                apiBase: API_BASE,
+                token: token,
+                onProgress: (task) => {
+                    updateUploadProgress(task);
+                },
+                onComplete: (task) => {
+                    // 刷新容量显示
+                    window.CapacityUtils.initCapacityDisplay();
+                    
+                    // 刷新文件列表
+                    if (!isSearchMode && !isTrashMode) {
+                        setTimeout(() => {
+                            loadFiles(currentPath);
+                        }, 300);
+                    }
+                },
+                onError: (task, error) => {
+                    console.error('Upload error:', error);
+                    showToast(`${task.file.name} 上传失败`, 'error');
+                },
+                onStatusChange: (task) => {
+                    updateUploadStats();
+                    renderUploadItem(task);
+                }
+            });
+        }
 
         function closeUploadDialog() {
+            if (!uploadManager) {
+                document.getElementById('uploadDialog').classList.add('hidden');
+                return;
+            }
+            
             // Don't close if there are active uploads
-            const hasActiveUploads = uploadQueue.some(item => item.status === 'uploading' || item.status === 'pending');
-            if (hasActiveUploads) {
+            if (uploadManager.hasActiveUploads()) {
                 showConfirm('确认关闭', '有文件正在上传，确定要关闭吗？', () => {
                     document.getElementById('uploadDialog').classList.add('hidden');
                 });
@@ -2559,158 +2683,225 @@
 
         async function handleFileSelect(event) {
             const files = event.target.files;
-            const progressDiv = document.getElementById('uploadProgress');
             
             if (files.length === 0) return;
 
-            // Add files to queue
-            Array.from(files).forEach(file => {
-                uploadQueue.push({
-                    file: file,
-                    status: 'pending',
-                    progress: 0
-                });
+            // 初始化上传管理器
+            initUploadManager();
+            
+            // 显示全局控制按钮
+            document.getElementById('uploadGlobalControls').classList.remove('hidden');
+            
+            // 获取父文件夹ID
+            const parentId = currentPath === null ? 'root' : currentPath.toString();
+            
+            // 添加文件到上传队列
+            const tasks = uploadManager.addFiles(files, parentId);
+            
+            // 渲染上传项
+            tasks.forEach(taskId => {
+                const task = uploadManager.getTasks().find(t => t.id === taskId);
+                if (task) {
+                    renderUploadItem(task);
+                }
             });
+            
+            updateUploadStats();
+        }
 
-            // Start upload if not already uploading
-            if (!isUploading) {
-                processUploadQueue();
+        function renderUploadItem(task) {
+            const progressDiv = document.getElementById('uploadProgress');
+            let item = document.getElementById(task.id);
+            
+            if (!item) {
+                item = document.createElement('div');
+                item.id = task.id;
+                item.className = 'border border-gray-200 rounded p-3 bg-white';
+                progressDiv.appendChild(item);
+            }
+            
+            // 根据状态设置样式
+            const statusColors = {
+                pending: 'bg-gray-200',
+                uploading: 'bg-blue-600',
+                paused: 'bg-yellow-500',
+                completed: 'bg-green-600',
+                failed: 'bg-red-600',
+                cancelled: 'bg-gray-400'
+            };
+            
+            const statusTexts = {
+                pending: '等待上传',
+                uploading: '上传中',
+                paused: '已暂停',
+                completed: '上传完成',
+                failed: '上传失败',
+                cancelled: '已取消'
+            };
+            
+            const progressColor = statusColors[task.status] || 'bg-gray-200';
+            const statusText = statusTexts[task.status] || task.status;
+            
+            // 计算速度和剩余时间
+            let speedText = '';
+            let timeText = '';
+            if (task.status === 'uploading' && task.speed > 0) {
+                speedText = formatSize(task.speed) + '/s';
+                const remaining = (task.totalSize - task.uploadedSize) / task.speed;
+                timeText = formatTime(remaining);
+            }
+            
+            item.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <svg class="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <span class="text-sm font-medium truncate">${task.file.name}</span>
+                        <span class="text-xs text-gray-500 flex-shrink-0">(${formatSize(task.totalSize)})</span>
+                    </div>
+                    <div class="flex items-center gap-1 ml-2">
+                        ${task.status === 'uploading' ? `
+                            <button onclick="pauseUpload('${task.id}')" class="p-1 text-yellow-600 hover:bg-yellow-50 rounded" title="暂停">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </button>
+                        ` : ''}
+                        ${task.status === 'paused' ? `
+                            <button onclick="resumeUpload('${task.id}')" class="p-1 text-green-600 hover:bg-green-50 rounded" title="继续">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </button>
+                        ` : ''}
+                        ${task.status === 'failed' ? `
+                            <button onclick="retryUpload('${task.id}')" class="p-1 text-blue-600 hover:bg-blue-50 rounded" title="重试">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            </button>
+                        ` : ''}
+                        ${task.status !== 'completed' && task.status !== 'cancelled' ? `
+                            <button onclick="cancelUpload('${task.id}')" class="p-1 text-red-600 hover:bg-red-50 rounded" title="取消">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-1">
+                    <div class="${progressColor} h-2 rounded-full transition-all duration-300" style="width: ${task.progress}%"></div>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="${task.status === 'failed' ? 'text-red-600' : 'text-gray-500'}">${statusText}</span>
+                    <span class="text-gray-500">${task.progress.toFixed(1)}%</span>
+                </div>
+                ${task.status === 'uploading' ? `
+                    <div class="flex items-center justify-between text-xs text-gray-500 mt-1">
+                        <span>${formatSize(task.uploadedSize)} / ${formatSize(task.totalSize)}</span>
+                        <span>${speedText} ${timeText ? '· 剩余 ' + timeText : ''}</span>
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        function updateUploadProgress(task) {
+            const item = document.getElementById(task.id);
+            if (!item) return;
+            
+            const progressBar = item.querySelector('.bg-blue-600, .bg-green-600, .bg-red-600, .bg-yellow-500, .bg-gray-200');
+            const progressText = item.querySelector('.text-gray-500:last-child');
+            
+            if (progressBar) {
+                progressBar.style.width = task.progress + '%';
+            }
+            if (progressText) {
+                progressText.textContent = task.progress.toFixed(1) + '%';
+            }
+            
+            // 更新速度和大小信息
+            if (task.status === 'uploading') {
+                const infoDiv = item.querySelector('.text-xs.text-gray-500.mt-1');
+                if (infoDiv && task.speed > 0) {
+                    const speedText = formatSize(task.speed) + '/s';
+                    const remaining = (task.totalSize - task.uploadedSize) / task.speed;
+                    const timeText = formatTime(remaining);
+                    infoDiv.innerHTML = `<span>${formatSize(task.uploadedSize)} / ${formatSize(task.totalSize)}</span><span>${speedText} ${timeText ? '· 剩余 ' + timeText : ''}</span>`;
+                }
             }
         }
 
-        async function processUploadQueue() {
-            if (uploadQueue.length === 0) {
-                isUploading = false;
-                // Auto refresh after all uploads complete
-                setTimeout(() => {
-                    if (!isSearchMode) {
-                        loadFiles(currentPath);
-                    }
-                }, 1000);
-                return;
-            }
-
-            isUploading = true;
-            const item = uploadQueue.find(i => i.status === 'pending');
-            if (!item) {
-                isUploading = false;
-                return;
-            }
-
-            const { file } = item;
-
-            // 检查容量
-            const hasCapacity = await window.CapacityUtils.checkCapacityBeforeUpload(file.size);
-            if (!hasCapacity) {
-                // 标记为失败,继续处理下一个文件
-                item.status = 'failed';
-                const progressDiv = document.getElementById('uploadProgress');
-                const progressItem = document.createElement('div');
-                progressItem.id = `upload_${file.name}`;
-                progressItem.className = 'border border-gray-200 rounded p-3';
-                progressItem.innerHTML = `
-                    <div class="text-sm font-medium mb-1">${file.name}</div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="bg-red-600 h-2 rounded-full" style="width: 100%"></div>
-                    </div>
-                    <div class="text-xs text-red-600 mt-1">存储空间不足</div>
-                `;
-                progressDiv.appendChild(progressItem);
-
-                // 继续处理下一个文件
-                processUploadQueue();
-                return;
-            }
-            const progressDiv = document.getElementById('uploadProgress');
+        function updateUploadStats() {
+            if (!uploadManager) return;
             
-            // Create progress item if not exists
-            let progressItem = document.getElementById(`upload_${file.name}`);
-            if (!progressItem) {
-                progressItem = document.createElement('div');
-                progressItem.id = `upload_${file.name}`;
-                progressItem.className = 'border border-gray-200 rounded p-3';
-                progressItem.innerHTML = `
-                    <div class="text-sm font-medium mb-1">${file.name}</div>
-                    <div class="w-full bg-gray-200 rounded-full h-2">
-                        <div class="bg-blue-600 h-2 rounded-full transition-all" style="width: 0%"></div>
-                    </div>
-                    <div class="text-xs text-gray-500 mt-1">等待上传...</div>
-                `;
-                progressDiv.appendChild(progressItem);
-            }
+            const stats = uploadManager.getStats();
+            const statsDiv = document.getElementById('uploadStats');
             
-            const progressBar = progressItem.querySelector('.bg-blue-600');
-            const statusText = progressItem.querySelector('.text-xs');
-            item.status = 'uploading';
+            statsDiv.innerHTML = `
+                <span class="text-blue-600">${stats.uploading}</span> 上传中
+                <span class="mx-1">·</span>
+                <span class="text-gray-600">${stats.pending}</span> 等待
+                <span class="mx-1">·</span>
+                <span class="text-green-600">${stats.completed}</span> 完成
+                <span class="mx-1">·</span>
+                <span class="text-red-600">${stats.failed}</span> 失败
+            `;
+        }
 
-            const formData = new FormData();
-            formData.append('file', file);
-            // 确保 parent_id 始终是字符串
-            const parentId = currentPath === null ? 'root' : currentPath.toString();
-            formData.append('parent_id', parentId);
-
-            try {
-                const xhr = new XMLHttpRequest();
-                xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
-                        const percent = (e.loaded / e.total) * 100;
-                        item.progress = percent;
-                        progressBar.style.width = percent + '%';
-                        statusText.textContent = `上传中: ${percent.toFixed(1)}% (${formatSize(e.loaded)} / ${formatSize(e.total)})`;
-                    }
-                };
-                xhr.onload = () => {
-                    if (xhr.status === 200) {
-                        item.status = 'completed';
-                        progressBar.style.width = '100%';
-                        progressBar.classList.remove('bg-blue-600');
-                        progressBar.classList.add('bg-green-600');
-                        statusText.textContent = '上传完成';
-                        statusText.classList.remove('text-gray-500');
-                        statusText.classList.add('text-green-600');
-                        showToast(`${file.name} 上传成功`, 'success');
-
-                        // 刷新容量显示
-                        window.CapacityUtils.initCapacityDisplay();
-
-                        // Immediately refresh file list after successful upload
-                        if (!isSearchMode && !isTrashMode) {
-                            setTimeout(() => {
-                                loadFiles(currentPath);
-                            }, 300);
-                        }
-                    } else {
-                        item.status = 'failed';
-                        progressBar.classList.remove('bg-blue-600');
-                        progressBar.classList.add('bg-red-600');
-                        statusText.textContent = '上传失败';
-                        statusText.classList.add('text-red-600');
-                        showToast(`${file.name} 上传失败`, 'error');
-                    }
-                    // Continue with next file
-                    setTimeout(() => processUploadQueue(), 500);
-                };
-                xhr.onerror = () => {
-                    item.status = 'failed';
-                    progressBar.classList.remove('bg-blue-600');
-                    progressBar.classList.add('bg-red-600');
-                    statusText.textContent = '上传失败';
-                    statusText.classList.add('text-red-600');
-                    showToast(`${file.name} 上传失败`, 'error');
-                    setTimeout(() => processUploadQueue(), 500);
-                };
-                xhr.open('POST', API_BASE + '/files/upload');
-                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-                xhr.send(formData);
-            } catch (error) {
-                console.error('Upload failed:', error);
-                item.status = 'failed';
-                progressBar.classList.remove('bg-blue-600');
-                progressBar.classList.add('bg-red-600');
-                statusText.textContent = '上传失败';
-                statusText.classList.add('text-red-600');
-                setTimeout(() => processUploadQueue(), 500);
+        function pauseUpload(taskId) {
+            if (uploadManager) {
+                uploadManager.pause();
             }
+        }
+
+        function resumeUpload(taskId) {
+            if (uploadManager) {
+                uploadManager.resume();
+            }
+        }
+
+        function cancelUpload(taskId) {
+            if (uploadManager) {
+                uploadManager.cancel(taskId);
+            }
+        }
+
+        function retryUpload(taskId) {
+            if (uploadManager) {
+                uploadManager.retry(taskId);
+            }
+        }
+
+        function togglePauseAll() {
+            if (!uploadManager) return;
+            
+            const btn = document.getElementById('pauseAllBtn');
+            if (uploadManager.paused) {
+                uploadManager.resume();
+                btn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>全部暂停</span>
+                `;
+                btn.classList.remove('bg-green-500', 'hover:bg-green-600');
+                btn.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+            } else {
+                uploadManager.pause();
+                btn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>全部继续</span>
+                `;
+                btn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+                btn.classList.add('bg-green-500', 'hover:bg-green-600');
+            }
+        }
+
+        function cancelAllUploads() {
+            if (uploadManager) {
+                showConfirm('确认取消', '确定要取消所有上传任务吗？', () => {
+                    uploadManager.cancelAll();
+                    document.getElementById('uploadGlobalControls').classList.add('hidden');
+                });
+            }
+        }
+
+        function formatTime(seconds) {
+            if (seconds < 60) return Math.ceil(seconds) + '秒';
+            if (seconds < 3600) return Math.ceil(seconds / 60) + '分钟';
+            return Math.ceil(seconds / 3600) + '小时';
         }
 
         async function createFolder() {

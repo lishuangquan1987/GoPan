@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -13,14 +14,83 @@ import (
 	"gopan-server/internal/storage"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 )
+
+// ChunkUploadInfo stores information about chunked uploads
+var (
+	chunkUploads     = make(map[string]*ChunkUploadInfo)
+	chunkUploadsLock sync.RWMutex
+)
+
+// ChunkUploadInfo represents a chunked upload session
+type ChunkUploadInfo struct {
+	ID           string
+	UserID       int
+	Filename     string
+	TotalSize    int64
+	UploadedSize int64
+	TempDir      string
+	ParentID     *int
+	CreatedAt    time.Time
+}
+
+// init initializes the chunk upload cleanup routine
+func init() {
+	// Start cleanup routine for expired uploads
+	go cleanupExpiredUploads()
+}
+
+// cleanupExpiredUploads periodically cleans up expired chunk uploads
+func cleanupExpiredUploads() {
+	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		cleanupExpiredChunkUploads()
+	}
+}
+
+// cleanupExpiredChunkUploads removes expired upload sessions and their temp files
+func cleanupExpiredChunkUploads() {
+	chunkUploadsLock.Lock()
+	defer chunkUploadsLock.Unlock()
+
+	now := time.Now()
+	for id, info := range chunkUploads {
+		// Clean up uploads older than 24 hours
+		if now.Sub(info.CreatedAt) > 24*time.Hour {
+			// Remove temp directory
+			if info.TempDir != "" {
+				os.RemoveAll(info.TempDir)
+			}
+			delete(chunkUploads, id)
+		}
+	}
+}
+
+// CancelChunkUpload cancels a chunk upload and cleans up temp files
+func CancelChunkUpload(uploadID string) {
+	chunkUploadsLock.Lock()
+	defer chunkUploadsLock.Unlock()
+
+	if info, exists := chunkUploads[uploadID]; exists {
+		// Remove temp directory
+		if info.TempDir != "" {
+			os.RemoveAll(info.TempDir)
+		}
+		delete(chunkUploads, uploadID)
+	}
+}
 
 type FileHandler struct {
 	cfg *config.Config
@@ -122,9 +192,9 @@ func (h *FileHandler) GetFiles(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"files": files,
-		"total": total,
-		"page":  page,
+		"files":     files,
+		"total":     total,
+		"page":      page,
 		"page_size": pageSize,
 	})
 }
@@ -161,9 +231,9 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 	// For instant upload, we'll check after determining if it's a new file
 	if user.TotalUsed+file.Size > user.TotalQuota {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Insufficient storage capacity",
-			"used":  user.TotalUsed,
-			"max":   user.TotalQuota,
+			"error":  "Insufficient storage capacity",
+			"used":   user.TotalUsed,
+			"max":    user.TotalQuota,
 			"needed": file.Size,
 		})
 		return
@@ -206,7 +276,7 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 			fileHashRecord.Update().AddReferenceCount(1).Save(ctx)
 		}
 	}
-	
+
 	if minioObject == "" {
 		// Upload to MinIO
 		objectName := fmt.Sprintf("%d/%s/%s", uid, uuid.New().String(), file.Filename)
@@ -289,6 +359,392 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 		"mime_type":  node.MimeType,
 		"created_at": node.CreatedAt,
 	})
+}
+
+// CheckUploadStatus handles POST /api/files/upload/status - Check upload status for resume
+func (h *FileHandler) CheckUploadStatus(c *gin.Context) {
+	userID := c.GetString("userID")
+
+	var req struct {
+		Filename string `json:"filename" binding:"required"`
+		Size     int64  `json:"size" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	uid, err := parseUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Generate upload ID based on user and file
+	uploadID := generateUploadID(uid, req.Filename, req.Size)
+
+	chunkUploadsLock.RLock()
+	info, exists := chunkUploads[uploadID]
+	chunkUploadsLock.RUnlock()
+
+	if exists {
+		c.JSON(http.StatusOK, gin.H{
+			"upload_id": uploadID,
+			"uploaded":  info.UploadedSize,
+			"total":     info.TotalSize,
+		})
+	} else {
+		c.JSON(http.StatusOK, gin.H{
+			"upload_id": uploadID,
+			"uploaded":  0,
+			"total":     req.Size,
+		})
+	}
+}
+
+// UploadChunk handles POST /api/files/upload/chunk - Upload file chunk
+func (h *FileHandler) UploadChunk(c *gin.Context) {
+	userID := c.GetString("userID")
+	parentID := c.PostForm("parent_id")
+
+	// Get chunk info from form
+	filename := c.PostForm("filename")
+	offsetStr := c.PostForm("offset")
+	totalStr := c.PostForm("total")
+
+	offset, err := strconv.ParseInt(offsetStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid offset"})
+		return
+	}
+
+	total, err := strconv.ParseInt(totalStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid total size"})
+		return
+	}
+
+	// Get chunk file
+	chunkFile, err := c.FormFile("chunk")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No chunk provided"})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Parse user ID
+	uid, err := parseUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	// Get user to check capacity
+	user, err := database.Client.User.Get(ctx, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		return
+	}
+
+	// Check capacity
+	if user.TotalUsed+total > user.TotalQuota {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":  "Insufficient storage capacity",
+			"used":   user.TotalUsed,
+			"max":    user.TotalQuota,
+			"needed": total,
+		})
+		return
+	}
+
+	// Generate upload ID
+	uploadID := generateUploadID(uid, filename, total)
+
+	chunkUploadsLock.Lock()
+	info, exists := chunkUploads[uploadID]
+	if !exists {
+		// Create temp directory for this upload
+		tempDir := filepath.Join(os.TempDir(), "gopan_uploads", uploadID)
+		if err := os.MkdirAll(tempDir, 0755); err != nil {
+			chunkUploadsLock.Unlock()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create temp directory"})
+			return
+		}
+
+		// Parse parent ID
+		var parentIDInt *int
+		if parentID != "" && parentID != "root" {
+			pid, err := parseNodeID(parentID)
+			if err == nil {
+				parentIDInt = &pid
+			}
+		}
+
+		info = &ChunkUploadInfo{
+			ID:        uploadID,
+			UserID:    uid,
+			Filename:  filename,
+			TotalSize: total,
+			TempDir:   tempDir,
+			ParentID:  parentIDInt,
+			CreatedAt: time.Now(),
+		}
+		chunkUploads[uploadID] = info
+	}
+	chunkUploadsLock.Unlock()
+
+	// Open chunk
+	chunk, err := chunkFile.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open chunk"})
+		return
+	}
+	defer chunk.Close()
+
+	// Write chunk to temp file
+	chunkPath := filepath.Join(info.TempDir, fmt.Sprintf("chunk_%d", offset))
+	out, err := os.Create(chunkPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create chunk file"})
+		return
+	}
+	defer out.Close()
+
+	written, err := io.Copy(out, chunk)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write chunk"})
+		return
+	}
+
+	// Update uploaded size
+	chunkUploadsLock.Lock()
+	info.UploadedSize += written
+	currentUploaded := info.UploadedSize
+	chunkUploadsLock.Unlock()
+
+	// Check if upload is complete
+	if currentUploaded >= total {
+		// Merge chunks and upload to MinIO
+		node, err := h.mergeChunksAndUpload(ctx, info, uid)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Clean up
+		chunkUploadsLock.Lock()
+		delete(chunkUploads, uploadID)
+		chunkUploadsLock.Unlock()
+		os.RemoveAll(info.TempDir)
+
+		c.JSON(http.StatusOK, gin.H{
+			"completed":  true,
+			"id":         node.ID,
+			"name":       node.Name,
+			"size":       node.Size,
+			"mime_type":  node.MimeType,
+			"created_at": node.CreatedAt,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"completed": false,
+		"uploaded":  currentUploaded,
+		"total":     total,
+	})
+}
+
+// mergeChunksAndUpload merges all chunks and uploads to MinIO
+func (h *FileHandler) mergeChunksAndUpload(ctx context.Context, info *ChunkUploadInfo, uid int) (*ent.Node, error) {
+	// Create final file
+	finalPath := filepath.Join(info.TempDir, "final")
+	final, err := os.Create(finalPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create final file: %w", err)
+	}
+	defer final.Close()
+
+	// Merge all chunks
+	var offset int64 = 0
+	for {
+		chunkPath := filepath.Join(info.TempDir, fmt.Sprintf("chunk_%d", offset))
+		chunk, err := os.Open(chunkPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				break
+			}
+			return nil, fmt.Errorf("failed to open chunk: %w", err)
+		}
+
+		_, err = io.Copy(final, chunk)
+		chunk.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge chunk: %w", err)
+		}
+
+		// Get next chunk
+		stat, _ := os.Stat(chunkPath)
+		if stat != nil {
+			offset += stat.Size()
+		}
+	}
+
+	// Seek to beginning for upload
+	final.Seek(0, 0)
+
+	// Calculate file hash
+	hasher := sha256.New()
+	_, err = io.Copy(hasher, final)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate hash: %w", err)
+	}
+	fileHash := hex.EncodeToString(hasher.Sum(nil))
+	final.Seek(0, 0)
+
+	// Check if file already exists (quick upload)
+	var minioObject string
+	var isNewFile bool = true
+
+	fileHashRecord, err := database.Client.FileHash.Query().
+		Where(filehash.HashEQ(fileHash)).
+		Only(ctx)
+	if err == nil {
+		// File exists, use existing MinIO object
+		minioObject = fileHashRecord.MinioObject
+		isNewFile = false
+		fileHashRecord.Update().AddReferenceCount(1).Save(ctx)
+	}
+
+	if minioObject == "" {
+		// Upload to MinIO
+		objectName := fmt.Sprintf("%d/%s/%s", uid, uuid.New().String(), info.Filename)
+		minioObject = objectName
+
+		stat, _ := final.Stat()
+		final.Seek(0, 0)
+
+		_, err = storage.GetClient().PutObject(ctx, h.cfg.MinIO.BucketName, objectName, final, stat.Size(), minio.PutObjectOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload to storage: %w", err)
+		}
+
+		// Save file hash
+		mimeType := getMimeType(info.Filename)
+		database.Client.FileHash.Create().
+			SetHash(fileHash).
+			SetMinioObject(minioObject).
+			SetSize(info.TotalSize).
+			SetNillableMimeType(&mimeType).
+			Save(ctx)
+	}
+
+	// Create node record
+	mimeType := getMimeType(info.Filename)
+	node, err := database.Client.Node.Create().
+		SetName(info.Filename).
+		SetType(1). // File
+		SetSize(info.TotalSize).
+		SetMimeType(mimeType).
+		SetNillableFileHash(&fileHash).
+		SetMinioObject(minioObject).
+		SetOwnerID(uid).
+		SetNillableParentID(info.ParentID).
+		Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create file record: %w", err)
+	}
+
+	// Update user's used storage
+	if isNewFile {
+		database.Client.User.UpdateOneID(uid).
+			AddTotalUsed(info.TotalSize).
+			Save(ctx)
+	}
+
+	return node, nil
+}
+
+// generateUploadID generates a unique upload ID
+func generateUploadID(userID int, filename string, size int64) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(fmt.Sprintf("%d:%s:%d", userID, filename, size)))
+	return hex.EncodeToString(hasher.Sum(nil))[:32]
+}
+
+// getMimeType returns MIME type based on file extension
+func getMimeType(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".mp4":
+		return "video/mp4"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".pdf":
+		return "application/pdf"
+	case ".txt":
+		return "text/plain"
+	case ".html", ".htm":
+		return "text/html"
+	case ".css":
+		return "text/css"
+	case ".js":
+		return "application/javascript"
+	case ".json":
+		return "application/json"
+	case ".zip":
+		return "application/zip"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+// CancelUpload handles POST /api/files/upload/cancel - Cancel chunk upload
+func (h *FileHandler) CancelUpload(c *gin.Context) {
+	userID := c.GetString("userID")
+
+	var req struct {
+		UploadID string `json:"upload_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	uid, err := parseUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	chunkUploadsLock.Lock()
+	info, exists := chunkUploads[req.UploadID]
+	chunkUploadsLock.Unlock()
+
+	if !exists {
+		c.JSON(http.StatusOK, gin.H{"message": "Upload not found or already cancelled"})
+		return
+	}
+
+	// Verify ownership
+	if info.UserID != uid {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to cancel this upload"})
+		return
+	}
+
+	// Cancel and cleanup
+	CancelChunkUpload(req.UploadID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Upload cancelled successfully"})
 }
 
 // CreateFolder handles POST /api/files/folder - Create folder
@@ -766,21 +1222,21 @@ func (h *FileHandler) CopyFiles(c *gin.Context) {
 				ext = n.Name[lastDot:]
 			}
 		}
-		
+
 		// Check for name conflicts and append (1), (2), etc.
 		counter := 1
 		for {
 			query := queryNodesByOwner(database.Client, uid).
 				Where(node.NameEQ(newName)).
 				Where(node.IsDeletedEQ(false))
-			
+
 			// Check parent relationship
 			if parentIDInt == nil {
 				query = query.Where(node.Not(node.HasParent()))
 			} else {
 				query = query.Where(node.HasParentWith(node.IDEQ(*parentIDInt)))
 			}
-			
+
 			exists, err := query.Exist(ctx)
 			if err != nil || !exists {
 				break
@@ -909,9 +1365,9 @@ func (h *FileHandler) QuickUpload(c *gin.Context) {
 	// But we should still check capacity for safety
 	if user.TotalUsed+req.Size > user.TotalQuota {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error": "Insufficient storage capacity",
-			"used":  user.TotalUsed,
-			"max":   user.TotalQuota,
+			"error":  "Insufficient storage capacity",
+			"used":   user.TotalUsed,
+			"max":    user.TotalQuota,
 			"needed": req.Size,
 		})
 		return
@@ -965,11 +1421,11 @@ func (h *FileHandler) QuickUpload(c *gin.Context) {
 	fileHashRecord.Update().AddReferenceCount(1).Save(ctx)
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":         node.ID,
-		"name":       node.Name,
-		"size":       node.Size,
-		"mime_type":  node.MimeType,
-		"created_at": node.CreatedAt,
+		"id":           node.ID,
+		"name":         node.Name,
+		"size":         node.Size,
+		"mime_type":    node.MimeType,
+		"created_at":   node.CreatedAt,
 		"quick_upload": true,
 	})
 }
@@ -1202,4 +1658,3 @@ func (h *FileHandler) PermanentlyDelete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "File permanently deleted"})
 }
-

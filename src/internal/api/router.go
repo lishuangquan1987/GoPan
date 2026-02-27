@@ -51,25 +51,28 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.Use(middleware.AuthMiddleware(&cfg.JWT))
 		{
 			// File routes
-			files := protected.Group("/files")
-			{
-				files.GET("", fileHandler.GetFiles)
-				files.POST("/upload", fileHandler.UploadFile)
-				files.POST("/folder", fileHandler.CreateFolder)
-				files.GET("/tree", fileHandler.GetFileTree)
-				files.GET("/:id", fileHandler.GetFile)
-				files.GET("/:id/download", fileHandler.DownloadFile)
-				files.GET("/:id/proxy", fileHandler.ProxyFile)
-				files.PUT("/:id", fileHandler.RenameFile)
-				files.PUT("/move", fileHandler.MoveFiles)
-				files.PUT("/copy", fileHandler.CopyFiles)
-				files.DELETE("/:id", fileHandler.DeleteFile)
-				files.POST("/quick-upload", fileHandler.QuickUpload)
-				files.GET("/search", fileHandler.SearchFiles)
-				files.GET("/trash", fileHandler.GetTrash)
-				files.POST("/restore", fileHandler.RestoreFile)
-				files.DELETE("/trash/:id", fileHandler.PermanentlyDelete)
-			}
+		files := protected.Group("/files")
+		{
+			files.GET("", fileHandler.GetFiles)
+			files.POST("/upload", fileHandler.UploadFile)
+			files.POST("/upload/status", fileHandler.CheckUploadStatus)
+			files.POST("/upload/chunk", fileHandler.UploadChunk)
+			files.POST("/upload/cancel", fileHandler.CancelUpload)
+			files.POST("/folder", fileHandler.CreateFolder)
+			files.GET("/tree", fileHandler.GetFileTree)
+			files.GET("/:id", fileHandler.GetFile)
+			files.GET("/:id/download", fileHandler.DownloadFile)
+			files.GET("/:id/proxy", fileHandler.ProxyFile)
+			files.PUT("/:id", fileHandler.RenameFile)
+			files.PUT("/move", fileHandler.MoveFiles)
+			files.PUT("/copy", fileHandler.CopyFiles)
+			files.DELETE("/:id", fileHandler.DeleteFile)
+			files.POST("/quick-upload", fileHandler.QuickUpload)
+			files.GET("/search", fileHandler.SearchFiles)
+			files.GET("/trash", fileHandler.GetTrash)
+			files.POST("/restore", fileHandler.RestoreFile)
+			files.DELETE("/trash/:id", fileHandler.PermanentlyDelete)
+		}
 
 			// Share routes
 			shares := protected.Group("/shares")
